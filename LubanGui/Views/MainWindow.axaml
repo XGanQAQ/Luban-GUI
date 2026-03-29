@@ -1,20 +1,122 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:models="using:LubanGui.Models"
+        xmlns:converters="using:LubanGui.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="650"
         x:Class="LubanGui.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="LubanGui">
+        Title="Luban 导表工具"
+        Width="900" Height="650"
+        MinWidth="700" MinHeight="500">
+
+    <Window.Resources>
+        <converters:LogLevelToBrushConverter x:Key="LogLevelToBrushConverter" />
+    </Window.Resources>
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
+        <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+
+        <!-- ===== 配置区域 ===== -->
+        <Border Grid.Row="0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                BorderThickness="1" CornerRadius="4"
+                Padding="12" Margin="0,0,0,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="导表配置" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+                <!-- Excel 数据目录 -->
+                <Grid Grid.Row="1" ColumnDefinitions="130,*,80" Margin="0,0,0,6">
+                    <TextBlock Grid.Column="0" Text="Excel 数据目录:" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding ExcelDirectory}"
+                             Margin="8,0"
+                             Watermark="选择 Excel 文件所在目录" />
+                    <Button Grid.Column="2"
+                            Command="{Binding BrowseExcelDirectoryCommand}"
+                            HorizontalAlignment="Stretch">浏览</Button>
+                </Grid>
+
+                <!-- 输出结果目录 -->
+                <Grid Grid.Row="2" ColumnDefinitions="130,*,80" Margin="0,0,0,6">
+                    <TextBlock Grid.Column="0" Text="输出结果目录:" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding OutputDirectory}"
+                             Margin="8,0"
+                             Watermark="选择导出结果目录" />
+                    <Button Grid.Column="2"
+                            Command="{Binding BrowseOutputDirectoryCommand}"
+                            HorizontalAlignment="Stretch">浏览</Button>
+                </Grid>
+
+                <!-- Luban 可执行文件路径 -->
+                <Grid Grid.Row="3" ColumnDefinitions="130,*,80">
+                    <TextBlock Grid.Column="0" Text="Luban 路径:" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding LubanPath}"
+                             Margin="8,0"
+                             Watermark="选择 Luban 可执行文件（luban.exe）" />
+                    <Button Grid.Column="2"
+                            Command="{Binding BrowseLubanPathCommand}"
+                            HorizontalAlignment="Stretch">浏览</Button>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ===== 操作按钮区 ===== -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="0,0,0,8">
+            <Button Command="{Binding ValidateConfigCommand}">校验配置</Button>
+            <Button Command="{Binding ExportCommand}" Classes="accent">全量导表</Button>
+            <Button Command="{Binding CancelCommand}">取消</Button>
+            <TextBlock VerticalAlignment="Center"
+                       Margin="12,0,0,0"
+                       Text="{Binding StatusText}"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </StackPanel>
+
+        <!-- ===== 日志区域 ===== -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                BorderThickness="1" CornerRadius="4"
+                Padding="4">
+            <Grid RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0"
+                           Text="运行日志"
+                           FontWeight="SemiBold"
+                           Margin="8,4,8,4" />
+                <ListBox Grid.Row="1"
+                         x:Name="LogListBox"
+                         ItemsSource="{Binding LogEntries}"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         SelectionMode="Multiple">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:LogEntry">
+                            <TextBlock Text="{Binding FormattedMessage}"
+                                       Foreground="{Binding Level, Converter={StaticResource LogLevelToBrushConverter}}"
+                                       FontFamily="Consolas, Courier New, monospace"
+                                       FontSize="12" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Grid>
 
 </Window>
