@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Models\" />
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
+    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.12">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
+  </ItemGroup>
+
+  <!-- ===== Luban 构建集成 ===== -->
+  <PropertyGroup>
+    <LubanProjectPath>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\Luban.csproj</LubanProjectPath>
+    <LubanOutputDir>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\bin\$(Configuration)\net8.0\</LubanOutputDir>
+    <LubanDeployDir>$(OutputPath)luban\</LubanDeployDir>
+  </PropertyGroup>
+
+  <!-- 在 GUI 构建前，先构建 Luban -->
+  <Target Name="BuildLuban" BeforeTargets="PreBuildEvent">
+    <Message Text="正在构建 Luban..." Importance="high" />
+    <MSBuild Projects="$(LubanProjectPath)"
+             Properties="Configuration=$(Configuration)"
+             Targets="Build" />
+  </Target>
+
+  <!-- 构建完成后，将 Luban 输出复制到 GUI 输出目录的 luban/ 子文件夹 -->
+  <Target Name="CopyLubanToOutput" AfterTargets="BuildLuban">
+    <ItemGroup>
+      <LubanOutputFiles Include="$(LubanOutputDir)*" />
+    </ItemGroup>
+    <MakeDir Directories="$(MSBuildProjectDirectory)\bin\$(Configuration)\net8.0\luban" />
+    <Copy SourceFiles="@(LubanOutputFiles)"
+          DestinationFolder="$(MSBuildProjectDirectory)\bin\$(Configuration)\net8.0\luban"
+          SkipUnchangedFiles="true" />
+    <Message Text="Luban 已复制到输出目录 luban/" Importance="high" />
+  </Target>
+
+</Project>

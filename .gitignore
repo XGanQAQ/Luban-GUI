@@ -1,0 +1,25 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Rider
+.idea/
+
+# dotnet publish output
+publish/
+
+# Logs
+logs/
+*.log
+
+# User config
+**/AppData/
+
+# OS
+.DS_Store
+Thumbs.db
