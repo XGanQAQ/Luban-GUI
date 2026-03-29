@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,11 @@ namespace LubanGui.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ILogger<MainWindowViewModel> _logger;
+
+    // ── GUI 专有 ──────────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private string _profileName = "Default";
 
     // ── 必填参数 ──────────────────────────────────────────────────────────────
 
@@ -65,10 +71,20 @@ public partial class MainWindowViewModel : ViewModelBase
     // ── UI 状态 ───────────────────────────────────────────────────────────────
 
     [ObservableProperty]
-    private string _statusText = "就绪";
+    private string _statusText = "● 就绪";
+
+    [ObservableProperty]
+    private ExportStatus _exportStatus = ExportStatus.Idle;
 
     [ObservableProperty]
     private bool _isExporting;
+
+    [ObservableProperty]
+    private string _lastExportStatusText = "上次导表: —";
+
+    /// <summary>应用版本号，从程序集版本读取。</summary>
+    public string AppVersion { get; } =
+        "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
 
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
@@ -86,9 +102,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnIsExportingChanged(bool value)
     {
+        ExportStatus = value ? ExportStatus.Exporting : ExportStatus.Idle;
         CancelCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
         ValidateConfigCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnExportStatusChanged(ExportStatus value)
+    {
+        StatusText = value switch
+        {
+            ExportStatus.Exporting => "⟳ 导表中…",
+            ExportStatus.Success   => "✓ 成功",
+            ExportStatus.Failed    => "✗ 失败",
+            ExportStatus.Cancelled => "✗ 已取消",
+            _                      => "● 就绪",
+        };
     }
 
     // ── 列表项操作命令 ────────────────────────────────────────────────────────
@@ -132,6 +161,23 @@ public partial class MainWindowViewModel : ViewModelBase
     private void BrowseConfFile()
     {
         AddLog(LogEntryLevel.Info, "文件浏览对话框将在 Week 2 实现");
+    }
+
+    // ── 日志操作命令 ──────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void ClearLogs()
+    {
+        LogEntries.Clear();
+        _logger.LogInformation("日志已清空");
+    }
+
+    // ── 关于命令（Week 2 实现完整对话框） ────────────────────────────────────
+
+    [RelayCommand]
+    private void ShowAbout()
+    {
+        AddLog(LogEntryLevel.Info, $"Luban-GUI {AppVersion}  —  Luban 命令行工具可视化封装");
     }
 
     // ── 主操作命令 ────────────────────────────────────────────────────────────

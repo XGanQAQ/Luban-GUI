@@ -11,325 +11,416 @@
         Icon="/Assets/avalonia-logo.ico"
         Title="Luban 导表工具"
         Width="900" Height="750"
-        MinWidth="700" MinHeight="550">
+        MinWidth="700" MinHeight="600">
 
     <Window.Resources>
         <converters:LogLevelToBrushConverter x:Key="LogLevelToBrushConverter" />
+        <converters:ExportStatusToBrushConverter x:Key="ExportStatusToBrushConverter" />
     </Window.Resources>
 
     <Design.DataContext>
         <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="12">
+    <DockPanel>
 
-        <!-- ===== 必填配置 ===== -->
-        <Border Grid.Row="0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                BorderThickness="1" CornerRadius="4"
-                Padding="12" Margin="0,0,0,8">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Text="必填配置" FontWeight="SemiBold" Margin="0,0,0,10" />
+        <!-- ===== 工具栏 ===== -->
+        <Border DockPanel.Dock="Top"
+                Height="48"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,0">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
 
-                <!-- Luban 可执行文件路径 -->
-                <Grid Grid.Row="1" ColumnDefinitions="150,*,80" Margin="0,0,0,6">
-                    <TextBlock Grid.Column="0" Text="Luban 路径:" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding LubanPath}" Margin="8,0"
-                             Watermark="luban.exe 可执行文件路径" />
-                    <Button Grid.Column="2" Command="{Binding BrowseLubanPathCommand}"
-                            HorizontalAlignment="Stretch">浏览</Button>
-                </Grid>
+                <!-- 操作按钮 -->
+                <Button Grid.Column="0"
+                        Command="{Binding ExportCommand}"
+                        Classes="accent"
+                        Padding="16,8" Margin="0,0,4,0"
+                        VerticalAlignment="Center">▶ 全量导表</Button>
 
-                <!-- 配置文件路径 -->
-                <Grid Grid.Row="2" ColumnDefinitions="150,*,80" Margin="0,0,0,6">
-                    <TextBlock Grid.Column="0" Text="配置文件 (--conf):" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding ConfFile}" Margin="8,0"
-                             Watermark="luban.conf 路径" />
-                    <Button Grid.Column="2" Command="{Binding BrowseConfFileCommand}"
-                            HorizontalAlignment="Stretch">浏览</Button>
-                </Grid>
+                <Button Grid.Column="1"
+                        Command="{Binding ValidateConfigCommand}"
+                        Padding="16,8" Margin="0,0,4,0"
+                        VerticalAlignment="Center">✅ 校验配置</Button>
 
-                <!-- 目标名称 -->
-                <Grid Grid.Row="3" ColumnDefinitions="150,*,80">
-                    <TextBlock Grid.Column="0" Text="目标 (--target):" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding Target}" Margin="8,0"
-                             Watermark="例: client, server, all" />
-                </Grid>
-            </Grid>
-        </Border>
+                <Button Grid.Column="2"
+                        Command="{Binding CancelCommand}"
+                        Padding="16,8" Margin="0,0,0,0"
+                        VerticalAlignment="Center">⏹ 取消</Button>
 
-        <!-- ===== 常用配置 ===== -->
-        <Border Grid.Row="1"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                BorderThickness="1" CornerRadius="4"
-                Padding="12" Margin="0,0,0,8">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Text="常用配置" FontWeight="SemiBold" Margin="0,0,0,10" />
-
-                <!-- codeTarget 列表 -->
-                <Grid Grid.Row="1" ColumnDefinitions="150,*" Margin="0,0,0,8">
-                    <TextBlock Grid.Column="0" Text="codeTarget:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                    <StackPanel Grid.Column="1">
-                        <ItemsControl ItemsSource="{Binding CodeTargets}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:StringItemViewModel">
-                                    <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="例: cs-bin, cs-simple-json" />
-                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Command="{Binding AddCodeTargetCommand}" HorizontalAlignment="Left"
-                                Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                    </StackPanel>
-                </Grid>
-
-                <!-- dataTarget 列表 -->
-                <Grid Grid.Row="2" ColumnDefinitions="150,*" Margin="0,0,0,8">
-                    <TextBlock Grid.Column="0" Text="dataTarget:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                    <StackPanel Grid.Column="1">
-                        <ItemsControl ItemsSource="{Binding DataTargets}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:StringItemViewModel">
-                                    <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="例: bin, json" />
-                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Command="{Binding AddDataTargetCommand}" HorizontalAlignment="Left"
-                                Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                    </StackPanel>
-                </Grid>
-
-                <!-- xargs 列表 -->
-                <Grid Grid.Row="3" ColumnDefinitions="150,*">
-                    <TextBlock Grid.Column="0" Text="xargs (-x):" VerticalAlignment="Top" Margin="0,6,0,0" />
-                    <StackPanel Grid.Column="1">
-                        <ItemsControl ItemsSource="{Binding Xargs}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:StringItemViewModel">
-                                    <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="key=value" />
-                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Command="{Binding AddXargsCommand}" HorizontalAlignment="Left"
-                                Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                    </StackPanel>
-                </Grid>
-            </Grid>
-        </Border>
-
-        <!-- ===== 高级选项 ===== -->
-        <Expander Grid.Row="2" Header="高级选项" IsExpanded="False" Margin="0,0,0,8">
-            <Border Padding="12,8">
-                <StackPanel Spacing="8">
-
-                    <!-- 标量字段：SchemaCollector / Pipeline -->
-                    <Grid ColumnDefinitions="*,*">
-                        <Grid Grid.Column="0" ColumnDefinitions="140,*" Margin="0,0,8,0">
-                            <TextBlock Grid.Column="0" Text="schemaCollector:" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding SchemaCollector}" Margin="8,0" Watermark="default" />
-                        </Grid>
-                        <Grid Grid.Column="1" ColumnDefinitions="80,*">
-                            <TextBlock Grid.Column="0" Text="pipeline:" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding Pipeline}" Margin="8,0" Watermark="default" />
-                        </Grid>
-                    </Grid>
-
-                    <!-- 标量字段：TimeZone / LogConfig -->
-                    <Grid ColumnDefinitions="*,*">
-                        <Grid Grid.Column="0" ColumnDefinitions="140,*" Margin="0,0,8,0">
-                            <TextBlock Grid.Column="0" Text="timeZone:" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding TimeZone}" Margin="8,0" Watermark="例: Asia/Shanghai" />
-                        </Grid>
-                        <Grid Grid.Column="1" ColumnDefinitions="80,*">
-                            <TextBlock Grid.Column="0" Text="logConfig:" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding LogConfig}" Margin="8,0" Watermark="nlog.xml" />
-                        </Grid>
-                    </Grid>
-
-                    <!-- 布尔开关 -->
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <CheckBox IsChecked="{Binding ValidationFailAsError}">validationFailAsError</CheckBox>
-                        <CheckBox IsChecked="{Binding ForceLoadTableDatas}">forceLoadTableDatas</CheckBox>
-                        <CheckBox IsChecked="{Binding Verbose}">verbose</CheckBox>
-                    </StackPanel>
-
-                    <!-- outputTable 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="outputTable:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding OutputTables}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="表名" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddOutputTableCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- includeTag 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="includeTag:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding IncludeTags}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="标签名" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddIncludeTagCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- excludeTag 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="excludeTag:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding ExcludeTags}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="标签名" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddExcludeTagCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- variant 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="variant:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding Variants}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="key=value" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddVariantCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- customTemplateDir 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="customTemplateDir:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding CustomTemplateDirs}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="自定义模板目录路径" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddCustomTemplateDirCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- watchDir 列表 -->
-                    <Grid ColumnDefinitions="150,*">
-                        <TextBlock Grid.Column="0" Text="watchDir:" VerticalAlignment="Top" Margin="0,6,0,0" />
-                        <StackPanel Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding WatchDirs}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:StringItemViewModel">
-                                        <Grid ColumnDefinitions="*,32" Margin="0,0,0,3">
-                                            <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="监听目录路径" />
-                                            <Button Grid.Column="1" Command="{Binding RemoveCommand}"
-                                                    Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">-</Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Command="{Binding AddWatchDirCommand}" HorizontalAlignment="Left"
-                                    Padding="8,2" Margin="0,3,0,0">+ 添加</Button>
-                        </StackPanel>
-                    </Grid>
-
-                </StackPanel>
-            </Border>
-        </Expander>
-
-        <!-- ===== 操作按钮区 ===== -->
-        <StackPanel Grid.Row="3"
-                    Orientation="Horizontal"
-                    Spacing="8"
-                    Margin="0,0,0,8">
-            <Button Command="{Binding ValidateConfigCommand}">校验配置</Button>
-            <Button Command="{Binding ExportCommand}" Classes="accent">全量导表</Button>
-            <Button Command="{Binding CancelCommand}">取消</Button>
-            <TextBlock VerticalAlignment="Center"
-                       Margin="12,0,0,0"
-                       Text="{Binding StatusText}"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-        </StackPanel>
-
-        <!-- ===== 日志区域 ===== -->
-        <Border Grid.Row="4"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                BorderThickness="1" CornerRadius="4"
-                Padding="4">
-            <Grid RowDefinitions="Auto,*">
-                <TextBlock Grid.Row="0"
-                           Text="运行日志"
+                <!-- 状态指示器 -->
+                <TextBlock Grid.Column="3"
+                           Text="{Binding StatusText}"
+                           Foreground="{Binding ExportStatus, Converter={StaticResource ExportStatusToBrushConverter}}"
                            FontWeight="SemiBold"
-                           Margin="8,4,8,4" />
-                <ListBox Grid.Row="1"
-                         x:Name="LogListBox"
-                         ItemsSource="{Binding LogEntries}"
-                         Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         SelectionMode="Multiple">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="models:LogEntry">
-                            <TextBlock Text="{Binding FormattedMessage}"
-                                       Foreground="{Binding Level, Converter={StaticResource LogLevelToBrushConverter}}"
-                                       FontFamily="Consolas, Courier New, monospace"
-                                       FontSize="12" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0" />
+
+                <!-- 中间弹性空间 (Column 4 = *) -->
+
+                <!-- 辅助按钮 -->
+                <Button Grid.Column="5"
+                        Command="{Binding ShowAboutCommand}"
+                        Padding="10,8" Margin="0,0,0,0"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="关于 Luban-GUI">？</Button>
+
             </Grid>
         </Border>
 
-    </Grid>
+        <!-- ===== 状态栏 ===== -->
+        <Border DockPanel.Dock="Bottom"
+                Height="24"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding LastExportStatusText}"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding AppVersion}"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            </Grid>
+        </Border>
+
+        <!-- ===== 主内容区：配置面板 + 分隔线 + 日志面板 ===== -->
+        <Grid RowDefinitions="3*,5,2*" Margin="8,6,8,6">
+
+            <!-- ─── 配置面板 ─── -->
+            <Border Grid.Row="0"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1" CornerRadius="4">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,8" Spacing="4">
+
+                        <!-- 配置名称 -->
+                        <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
+                            <TextBlock Grid.Column="0" Text="配置名称:" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" Text="{Binding ProfileName}" Margin="8,0,0,0"
+                                     Watermark="例: DefaultGame" />
+                        </Grid>
+
+                        <!-- ▸ 必填参数 (默认展开) -->
+                        <Expander Header="必填参数" IsExpanded="True">
+                            <StackPanel Margin="8,6,0,6" Spacing="6">
+                                <Grid ColumnDefinitions="90,*,80">
+                                    <TextBlock Grid.Column="0" Text="Luban 路径:" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding LubanPath}" Margin="8,0"
+                                             Watermark="luban.exe 可执行文件路径" />
+                                    <Button Grid.Column="2" Command="{Binding BrowseLubanPathCommand}"
+                                            HorizontalAlignment="Stretch">浏览</Button>
+                                </Grid>
+                                <Grid ColumnDefinitions="90,*,80">
+                                    <TextBlock Grid.Column="0" Text="配置文件:" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding ConfFile}" Margin="8,0"
+                                             Watermark="luban.conf 路径" />
+                                    <Button Grid.Column="2" Command="{Binding BrowseConfFileCommand}"
+                                            HorizontalAlignment="Stretch">浏览</Button>
+                                </Grid>
+                                <Grid ColumnDefinitions="90,*,80">
+                                    <TextBlock Grid.Column="0" Text="目标:" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding Target}" Margin="8,0"
+                                             Watermark="例: client, server, all" />
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- ▾ 常用可选 (默认展开) -->
+                        <Expander Header="常用可选" IsExpanded="True">
+                            <StackPanel Margin="8,6,0,6" Spacing="6">
+
+                                <!-- 代码目标 (-codeTarget) -->
+                                <Grid ColumnDefinitions="90,*">
+                                    <TextBlock Grid.Column="0" Text="代码目标:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding CodeTargets}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}"
+                                                                 Watermark="例: cs-bin, cs-simple-json" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2"
+                                                                VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddCodeTargetCommand}"
+                                                Padding="8,2" Margin="0,3,0,0"
+                                                HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 数据目标 (-dataTarget) -->
+                                <Grid ColumnDefinitions="90,*">
+                                    <TextBlock Grid.Column="0" Text="数据目标:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding DataTargets}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}"
+                                                                 Watermark="例: bin, json" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2"
+                                                                VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddDataTargetCommand}"
+                                                Padding="8,2" Margin="0,3,0,0"
+                                                HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 扩展参数 (-xargs) -->
+                                <Grid ColumnDefinitions="90,*">
+                                    <TextBlock Grid.Column="0" Text="扩展参数:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding Xargs}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}"
+                                                                 Watermark="key=value" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2"
+                                                                VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddXargsCommand}"
+                                                Padding="8,2" Margin="0,3,0,0"
+                                                HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- ▸ 高级参数 (默认折叠) -->
+                        <Expander Header="高级参数" IsExpanded="False">
+                            <StackPanel Margin="8,6,0,6" Spacing="6">
+
+                                <!-- schemaCollector / pipeline -->
+                                <Grid ColumnDefinitions="*,*">
+                                    <Grid Grid.Column="0" ColumnDefinitions="110,*" Margin="0,0,8,0">
+                                        <TextBlock Grid.Column="0" Text="Schema 收集器:" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding SchemaCollector}"
+                                                 Margin="8,0,0,0" Watermark="default" />
+                                    </Grid>
+                                    <Grid Grid.Column="1" ColumnDefinitions="70,*">
+                                        <TextBlock Grid.Column="0" Text="Pipeline:" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding Pipeline}"
+                                                 Margin="8,0,0,0" Watermark="default" />
+                                    </Grid>
+                                </Grid>
+
+                                <!-- timeZone / logConfig -->
+                                <Grid ColumnDefinitions="*,*">
+                                    <Grid Grid.Column="0" ColumnDefinitions="110,*" Margin="0,0,8,0">
+                                        <TextBlock Grid.Column="0" Text="时区:" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding TimeZone}"
+                                                 Margin="8,0,0,0" Watermark="例: Asia/Shanghai" />
+                                    </Grid>
+                                    <Grid Grid.Column="1" ColumnDefinitions="70,*">
+                                        <TextBlock Grid.Column="0" Text="NLog 配置:" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding LogConfig}"
+                                                 Margin="8,0,0,0" Watermark="nlog.xml" />
+                                    </Grid>
+                                </Grid>
+
+                                <!-- 布尔开关 -->
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <CheckBox IsChecked="{Binding ValidationFailAsError}">验证失败作为错误</CheckBox>
+                                    <CheckBox IsChecked="{Binding ForceLoadTableDatas}">强制加载表数据</CheckBox>
+                                    <CheckBox IsChecked="{Binding Verbose}">Verbose</CheckBox>
+                                </StackPanel>
+
+                                <!-- 只输出指定表 (-outputTable) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="只输出指定表:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding OutputTables}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="表名" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddOutputTableCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 包含标签 (-includeTag) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="包含标签:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding IncludeTags}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="标签名" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddIncludeTagCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 排除标签 (-excludeTag) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="排除标签:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding ExcludeTags}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="标签名" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddExcludeTagCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 字段变体 (-variant) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="字段变体:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding Variants}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="key=value" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddVariantCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 自定义模板目录 (-customTemplateDir) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="自定义模板目录:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding CustomTemplateDirs}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="自定义模板目录路径" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddCustomTemplateDirCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 监听目录 (-watchDir) -->
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="监听目录:" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding WatchDirs}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StringItemViewModel">
+                                                    <Grid ColumnDefinitions="*,30" Margin="0,0,0,3">
+                                                        <TextBox Grid.Column="0" Text="{Binding Value}" Watermark="监听目录路径" />
+                                                        <Button Grid.Column="1" Command="{Binding RemoveCommand}"
+                                                                Margin="4,0,0,0" Padding="4,2" VerticalAlignment="Center">×</Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Command="{Binding AddWatchDirCommand}"
+                                                Padding="8,2" Margin="0,3,0,0" HorizontalAlignment="Left">+ 添加</Button>
+                                    </StackPanel>
+                                </Grid>
+
+                            </StackPanel>
+                        </Expander>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ─── GridSplitter ─── -->
+            <GridSplitter Grid.Row="1"
+                          Height="5"
+                          HorizontalAlignment="Stretch"
+                          Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+
+            <!-- ─── 日志面板 ─── -->
+            <Border Grid.Row="2"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1" CornerRadius="4">
+                <Grid RowDefinitions="Auto,*">
+
+                    <!-- 日志标题栏 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,4">
+                        <TextBlock Grid.Column="0"
+                                   Text="运行日志"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Command="{Binding ClearLogsCommand}"
+                                Padding="6,2"
+                                ToolTip.Tip="清空日志">🗑 清空</Button>
+                    </Grid>
+
+                    <!-- 日志列表（虚拟化，支持多选复制） -->
+                    <ListBox Grid.Row="1"
+                             x:Name="LogListBox"
+                             ItemsSource="{Binding LogEntries}"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             SelectionMode="Multiple"
+                             Padding="4,0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:LogEntry">
+                                <TextBlock Text="{Binding FormattedMessage}"
+                                           Foreground="{Binding Level, Converter={StaticResource LogLevelToBrushConverter}}"
+                                           FontFamily="Consolas, Courier New, monospace"
+                                           FontSize="12" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                </Grid>
+            </Border>
+
+        </Grid>
+
+    </DockPanel>
 
 </Window>
