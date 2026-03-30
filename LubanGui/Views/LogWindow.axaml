@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:models="using:LubanGui.Models"
+        xmlns:converters="using:LubanGui.Converters"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="400"
+        x:Class="LubanGui.Views.LogWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="日志"
+        Width="700" Height="400"
+        MinWidth="400" MinHeight="200"
+        CanResize="True">
+
+    <Window.Resources>
+        <converters:LogLevelToBrushConverter x:Key="LogLevelToBrushConverter" />
+    </Window.Resources>
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- 标题栏 -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,4">
+            <TextBlock Grid.Column="0"
+                       Text="运行日志"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1"
+                    Command="{Binding ClearLogsCommand}"
+                    Padding="6,2"
+                    ToolTip.Tip="清空日志">🗑 清空</Button>
+        </Grid>
+
+        <!-- 日志列表（多选支持 Ctrl+A / Ctrl+C 复制） -->
+        <ListBox Grid.Row="1"
+                 x:Name="LogListBox"
+                 ItemsSource="{Binding LogEntries}"
+                 Background="Transparent"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 SelectionMode="Multiple"
+                 Padding="4,0">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="models:LogEntry">
+                    <TextBlock Text="{Binding FormattedMessage}"
+                               Foreground="{Binding Level, Converter={StaticResource LogLevelToBrushConverter}}"
+                               FontFamily="Consolas, Courier New, monospace"
+                               FontSize="12" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+    </Grid>
+
+</Window>

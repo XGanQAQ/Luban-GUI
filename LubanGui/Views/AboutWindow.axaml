@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="260"
+        x:Class="LubanGui.Views.AboutWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="关于 Luban-GUI"
+        Width="400" Height="260"
+        MinWidth="320" MinHeight="220"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="*,Auto" Margin="24">
+
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+            <TextBlock Text="🔧  Luban-GUI"
+                       FontSize="22" FontWeight="Bold"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding AppVersion, StringFormat='版本: {0}'}"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <TextBlock Text=" " />
+            <TextBlock Text="Luban 命令行工具的可视化封装，帮助用户"
+                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+            <TextBlock Text="无需命令行即可完成表格导出任务。"
+                       HorizontalAlignment="Center" TextAlignment="Center" />
+        </StackPanel>
+
+        <Button Grid.Row="1"
+                x:Name="OkButton"
+                HorizontalAlignment="Right"
+                Padding="24,8">确定</Button>
+
+    </Grid>
+
+</Window>

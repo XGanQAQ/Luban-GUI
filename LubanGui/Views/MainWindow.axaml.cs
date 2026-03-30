@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Specialized;
 using Avalonia.Controls;
 using LubanGui.ViewModels;
 
@@ -7,6 +6,8 @@ namespace LubanGui.Views;
 
 public partial class MainWindow : Window
 {
+    private LogWindow? _logWindow;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -18,21 +19,35 @@ public partial class MainWindow : Window
 
         if (DataContext is MainWindowViewModel vm)
         {
-            vm.LogEntries.CollectionChanged += LogEntries_CollectionChanged;
+            vm.OpenLogWindowRequested += OnOpenLogWindowRequested;
+            vm.OpenExportSettingsRequested += OnOpenExportSettingsRequested;
+            vm.OpenAboutRequested += OnOpenAboutRequested;
         }
     }
 
-    private void LogEntries_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnOpenLogWindowRequested(object? sender, EventArgs e)
     {
-        if (e.Action != NotifyCollectionChangedAction.Add)
+        if (_logWindow == null || !_logWindow.IsVisible)
         {
-            return;
+            _logWindow = new LogWindow { DataContext = DataContext };
+            _logWindow.Closed += (_, _) => _logWindow = null;
+            _logWindow.Show(this);
         }
+        else
+        {
+            _logWindow.Activate();
+        }
+    }
 
-        var listBox = this.FindControl<ListBox>("LogListBox");
-        if (listBox?.ItemCount > 0)
-        {
-            listBox.ScrollIntoView(listBox.ItemCount - 1);
-        }
+    private async void OnOpenExportSettingsRequested(object? sender, EventArgs e)
+    {
+        var dialog = new ExportSettingsWindow { DataContext = DataContext };
+        await dialog.ShowDialog(this);
+    }
+
+    private async void OnOpenAboutRequested(object? sender, EventArgs e)
+    {
+        var dialog = new AboutWindow { DataContext = DataContext };
+        await dialog.ShowDialog(this);
     }
 }
