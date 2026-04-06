@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="440" d:DesignHeight="230"
+        x:Class="LubanGui.Views.Dialogs.NewProjectDialog"
+        x:DataType="vm:NewProjectDialogViewModel"
+        Title="新建项目"
+        Width="440" Height="230"
+        MinWidth="380" MinHeight="200"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Design.DataContext>
+        <vm:NewProjectDialogViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="*,Auto" Margin="20,16">
+
+        <!-- 表单内容 -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto">
+
+            <!-- 项目名称 -->
+            <TextBlock Grid.Row="0" Text="项目名称" FontWeight="SemiBold" />
+            <TextBox Grid.Row="2"
+                     Text="{Binding ProjectName}"
+                     Watermark="例: MyGame"
+                     MaxLength="64" />
+
+            <!-- 工作区路径 -->
+            <TextBlock Grid.Row="4" Text="工作区路径（项目文件夹将在此目录下创建）" FontWeight="SemiBold" />
+            <Grid Grid.Row="6" ColumnDefinitions="*,8,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding WorkspacePath}"
+                         Watermark="选择工作区根目录…" />
+                <Button Grid.Column="2"
+                        Content="浏览…"
+                        Command="{Binding BrowseCommand}"
+                        MinWidth="64" />
+            </Grid>
+
+        </Grid>
+
+        <!-- 按钮行 -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,8,Auto,8,Auto"
+              Margin="0,12,0,0">
+
+            <!-- 错误提示 -->
+            <TextBlock Grid.Column="0"
+                       Text="{Binding ErrorMessage}"
+                       Foreground="Red"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <Button Grid.Column="2"
+                    Content="创建"
+                    Command="{Binding CreateCommand}"
+                    IsDefault="True"
+                    MinWidth="72" />
+            <Button Grid.Column="4"
+                    Content="取消"
+                    Command="{Binding CancelCommand}"
+                    IsCancel="True"
+                    MinWidth="72" />
+        </Grid>
+
+    </Grid>
+
+</Window>

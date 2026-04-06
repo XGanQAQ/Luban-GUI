@@ -4,6 +4,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
+using LubanGui.Infrastructure;
+using LubanGui.Services;
 using LubanGui.ViewModels;
 using LubanGui.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +16,7 @@ namespace LubanGui;
 
 public partial class App : Application
 {
-    private IServiceProvider? _serviceProvider;
+    internal IServiceProvider? _serviceProvider;
 
     public override void Initialize()
     {
@@ -40,6 +42,13 @@ public partial class App : Application
         // 桥接 Serilog 到 Microsoft.Extensions.Logging.ILogger<T>
         services.AddLogging(builder => builder.AddSerilog(dispose: true));
 
+        // 基础设施层
+        services.AddSingleton<AppConfigManager>();
+        services.AddSingleton<ProjectConfigManager>();
+
+        // 业务逻辑层
+        services.AddSingleton<IProjectManager, ProjectManager>();
+
         // 注册 ViewModel
         services.AddSingleton<MainWindowViewModel>();
     }
@@ -51,9 +60,18 @@ public partial class App : Application
             DisableAvaloniaDataAnnotationValidation();
 
             var viewModel = _serviceProvider!.GetRequiredService<MainWindowViewModel>();
+            var projectManager = _serviceProvider!.GetRequiredService<IProjectManager>();
+
             desktop.MainWindow = new MainWindow
             {
                 DataContext = viewModel,
+            };
+
+            // 异步初始化：加载持久化的项目列表并恢复上次打开的项目
+            desktop.MainWindow.Opened += async (_, _) =>
+            {
+                await projectManager.InitializeAsync();
+                viewModel.SyncProjectsFromManager();
             };
         }
 

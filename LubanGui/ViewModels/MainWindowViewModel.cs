@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,12 +11,45 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using LubanGui.Models;
+using LubanGui.Services;
 
 namespace LubanGui.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ILogger<MainWindowViewModel> _logger;
+    private readonly IProjectManager? _projectManager;
+
+    // ── 项目管理 ──────────────────────────────────────────────────────────────
+
+    /// <summary>所有已注册的项目列表（绑定到项目切换栏下拉框）。</summary>
+    public ObservableCollection<ProjectInfo> Projects { get; } = new();
+
+    private bool _isSyncingProject = false;
+
+    [ObservableProperty]
+    private ProjectInfo? _currentProject;
+
+    partial void OnCurrentProjectChanged(ProjectInfo? value)
+    {
+        OnPropertyChanged(nameof(HasCurrentProject));
+        OpenProjectFolderCommand.NotifyCanExecuteChanged();
+        Tables.Clear();
+
+        // 当用户通过 ComboBox 切换项目时，通知 ProjectManager（避免重入）
+        if (!_isSyncingProject && _projectManager != null && value != null
+            && !string.Equals(value.Name, _projectManager.CurrentProject?.Name, StringComparison.Ordinal))
+        {
+            _ = _projectManager.SwitchProjectAsync(value.Name);
+        }
+
+        AddLog(LogEntryLevel.Info, value != null
+            ? $"已切换到项目：{value.Name}"
+            : "当前无打开的项目");
+    }
+
+    /// <summary>是否有当前打开的项目（用于 UI 绑定启用状态）。</summary>
+    public bool HasCurrentProject => CurrentProject != null;
 
     // ── 导出配置：GUI 专有 ────────────────────────────────────────────────────
 
@@ -105,14 +140,24 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? OpenLogWindowRequested;
     public event EventHandler? OpenExportSettingsRequested;
     public event EventHandler? OpenAboutRequested;
+    public event EventHandler? NewProjectRequested;
+    public event EventHandler? OpenProjectRequested;
 
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
-    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance) { }
+    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null) { }
 
-    public MainWindowViewModel(ILogger<MainWindowViewModel> logger)
+    public MainWindowViewModel(ILogger<MainWindowViewModel> logger, IProjectManager? projectManager)
     {
         _logger = logger;
+        _projectManager = projectManager;
+
+        if (_projectManager != null)
+        {
+            _projectManager.CurrentProjectChanged += OnCurrentProjectChanged;
+            SyncProjectList();
+        }
+
         _logger.LogInformation("MainWindowViewModel 初始化完成");
         AddLog(LogEntryLevel.Info, "Luban 导表工具已就绪");
     }
@@ -144,20 +189,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void NewConfig()
     {
-        ProfileName = "Default";
-        LubanPath = string.Empty;
-        ConfFile = string.Empty;
-        Target = string.Empty;
-        CodeTargets.Clear();
-        DataTargets.Clear();
-        Xargs.Clear();
-        AddLog(LogEntryLevel.Info, "已创建新配置");
+        NewProjectRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
     private void OpenConfig()
     {
-        AddLog(LogEntryLevel.Info, "打开配置文件功能将在后续版本实现");
+        OpenProjectRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -174,6 +212,90 @@ public partial class MainWindowViewModel : ViewModelBase
             desktop.Shutdown();
         }
     }
+
+    // ── 项目管理命令 ──────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void NewProject() => NewProjectRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void OpenProject() => OpenProjectRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private async Task SwitchProject(ProjectInfo? project)
+    {
+        if (project == null || _projectManager == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _projectManager.SwitchProjectAsync(project.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "切换项目失败");
+            AddLog(LogEntryLevel.Error, $"切换项目失败：{ex.Message}");
+        }
+    }
+
+    private bool CanOpenProjectFolder() => HasCurrentProject;
+
+    [RelayCommand(CanExecute = nameof(CanOpenProjectFolder))]
+    private void OpenProjectFolder()
+    {
+        if (CurrentProject == null)
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = CurrentProject.ProjectPath,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "打开项目文件夹失败");
+            AddLog(LogEntryLevel.Error, $"打开文件夹失败：{ex.Message}");
+        }
+    }
+
+    // ── 项目切换响应 ──────────────────────────────────────────────────────────
+
+    private void OnCurrentProjectChanged(object? sender, ProjectInfo? project)
+    {
+        _isSyncingProject = true;
+        CurrentProject = project;
+        _isSyncingProject = false;
+        SyncProjectList();
+    }
+
+    private void SyncProjectList()
+    {
+        Projects.Clear();
+        if (_projectManager == null)
+        {
+            return;
+        }
+
+        foreach (var p in _projectManager.Projects)
+        {
+            Projects.Add(p);
+        }
+
+        if (CurrentProject == null && _projectManager.CurrentProject != null)
+        {
+            CurrentProject = _projectManager.CurrentProject;
+        }
+    }
+
+    /// <summary>供外部（App 启动时）在 ProjectManager 初始化完成后刷新项目列表。</summary>
+    public void SyncProjectsFromManager() => SyncProjectList();
 
     // ── 操作菜单命令 ──────────────────────────────────────────────────────────
 

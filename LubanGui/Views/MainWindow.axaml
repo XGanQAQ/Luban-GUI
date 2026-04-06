@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:models="using:LubanGui.Models"
         xmlns:converters="using:LubanGui.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -20,7 +21,7 @@
         <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
         <!-- ===== 菜单栏 ===== -->
         <Border Grid.Row="0"
@@ -33,15 +34,12 @@
 
                 <!-- 文件(F) -->
                 <MenuItem Header="文件(_F)">
-                    <MenuItem Header="新建配置(_N)"
-                              Command="{Binding NewConfigCommand}"
+                    <MenuItem Header="新建项目(_N)..."
+                              Command="{Binding NewProjectCommand}"
                               InputGesture="Ctrl+N" />
-                    <MenuItem Header="打开配置(_O)..."
-                              Command="{Binding OpenConfigCommand}"
+                    <MenuItem Header="打开项目(_O)..."
+                              Command="{Binding OpenProjectCommand}"
                               InputGesture="Ctrl+O" />
-                    <MenuItem Header="保存配置(_S)"
-                              Command="{Binding SaveConfigCommand}"
-                              InputGesture="Ctrl+S" />
                     <Separator />
                     <MenuItem Header="退出(_X)"
                               Command="{Binding ExitCommand}" />
@@ -92,8 +90,58 @@
         </Grid>
         </Border>
 
+        <!-- ===== 项目切换栏 ===== -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="项目:"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding Projects}"
+                          SelectedItem="{Binding CurrentProject}"
+                          MinWidth="160"
+                          MaxWidth="300">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:ProjectInfo">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="+ 新建项目"
+                        Command="{Binding NewProjectCommand}" />
+                <Button Content="📂 打开项目文件夹"
+                        Command="{Binding OpenProjectFolderCommand}"
+                        IsEnabled="{Binding HasCurrentProject}" />
+                <Button Content="📁 打开已有项目..."
+                        Command="{Binding OpenProjectCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ===== 快捷操作工具栏 ===== -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="+ 新建表格"
+                        IsEnabled="{Binding HasCurrentProject}"
+                        ToolTip.Tip="新建数据表（Week 3 实现）" />
+                <Button Content="+ 新建枚举"
+                        IsEnabled="{Binding HasCurrentProject}"
+                        ToolTip.Tip="新建枚举（Week 3 实现）" />
+                <Button Content="+ 新建 Bean"
+                        IsEnabled="{Binding HasCurrentProject}"
+                        ToolTip.Tip="新建 Bean（Week 3 实现）" />
+                <Button Content="📥 导入文件"
+                        IsEnabled="{Binding HasCurrentProject}"
+                        ToolTip.Tip="导入已有 xlsx（Week 3 实现）" />
+            </StackPanel>
+        </Border>
+
         <!-- ===== 主内容区：左右分栏 ===== -->
-        <Grid Grid.Row="1" ColumnDefinitions="240,5,*" Margin="0,4,0,0">
+        <Grid Grid.Row="3" ColumnDefinitions="240,5,*" Margin="0,4,0,0">
 
             <!-- ─── 左侧：表格列表面板 ─── -->
             <Border Grid.Column="0"
@@ -198,7 +246,7 @@
         </Grid>
 
         <!-- ===== 状态栏 ===== -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="4"
                 Height="24"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="0,1,0,0"
