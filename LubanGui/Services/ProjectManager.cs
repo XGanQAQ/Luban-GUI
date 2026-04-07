@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using ClosedXML.Excel;
 using LubanGui.Infrastructure;
 using LubanGui.Models;
 using Microsoft.Extensions.Logging;
@@ -103,10 +102,10 @@ public class ProjectManager : IProjectManager
         var lubanConf = BuildInitialLubanConf(name);
         await File.WriteAllTextAsync(Path.Combine(projectDir, "luban.conf"), lubanConf, Encoding.UTF8);
 
-        // 3. 生成三个元数据 xlsx
-        CreateMetaXlsx(Path.Combine(datasDir, "__tables__.xlsx"), GetTablesHeaders());
-        CreateMetaXlsx(Path.Combine(datasDir, "__enums__.xlsx"), GetEnumsHeaders());
-        CreateMetaXlsx(Path.Combine(datasDir, "__beans__.xlsx"), GetBeansHeaders());
+        // 3. 生成三个元数据 xlsx（使用 Luban 标准格式）
+        ExcelWriter.CreateTablesMetaXlsx(Path.Combine(datasDir, "__tables__.xlsx"));
+        ExcelWriter.CreateEnumsMetaXlsx(Path.Combine(datasDir, "__enums__.xlsx"));
+        ExcelWriter.CreateBeansMetaXlsx(Path.Combine(datasDir, "__beans__.xlsx"));
 
         // 4. 生成初始 projectConfig.json
         await _projectConfigManager.SaveAsync(projectDir, new ProjectConfig());
@@ -228,29 +227,4 @@ public class ProjectManager : IProjectManager
 }
 """;
     }
-
-    /// <summary>使用 ClosedXML 创建带列标题的空元数据 xlsx 文件。</summary>
-    private static void CreateMetaXlsx(string path, string[] headers)
-    {
-        using var workbook = new XLWorkbook();
-        var sheet = workbook.AddWorksheet("Sheet1");
-
-        for (var i = 0; i < headers.Length; i++)
-        {
-            sheet.Cell(1, i + 1).Value = headers[i];
-        }
-
-        // 设置列宽以改善可读性
-        sheet.Columns().AdjustToContents();
-        workbook.SaveAs(path);
-    }
-
-    private static string[] GetTablesHeaders() =>
-        new[] { "full_name", "value_type", "index", "is_merge_cell", "is_union_key", "group", "output", "comment" };
-
-    private static string[] GetEnumsHeaders() =>
-        new[] { "full_name", "item", "alias", "is_flags", "group", "comment" };
-
-    private static string[] GetBeansHeaders() =>
-        new[] { "full_name", "sep", "is_abstract", "parent", "group", "comment", "fields##name", "fields##type", "fields##group", "fields##comment" };
 }

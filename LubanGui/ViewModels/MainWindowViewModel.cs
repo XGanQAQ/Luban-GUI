@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Data;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -10,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using LubanGui.Infrastructure;
 using LubanGui.Models;
 using LubanGui.Services;
 
@@ -19,6 +22,9 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly IProjectManager? _projectManager;
+    private readonly ISchemaService? _schemaService;
+    private readonly ITablePreviewService? _previewService;
+    private readonly FileOpenService? _fileOpenService;
 
     // ── 项目管理 ──────────────────────────────────────────────────────────────
 
@@ -35,6 +41,9 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasCurrentProject));
         OpenProjectFolderCommand.NotifyCanExecuteChanged();
         Tables.Clear();
+        FilteredTables.Clear();
+        PreviewDataView = null;
+        SelectedTableMeta = null;
 
         // 当用户通过 ComboBox 切换项目时，通知 ProjectManager（避免重入）
         if (!_isSyncingProject && _projectManager != null && value != null
@@ -46,6 +55,11 @@ public partial class MainWindowViewModel : ViewModelBase
         AddLog(LogEntryLevel.Info, value != null
             ? $"已切换到项目：{value.Name}"
             : "当前无打开的项目");
+
+        if (value != null)
+        {
+            _ = RefreshTablesInternalAsync(value.ProjectPath);
+        }
     }
 
     /// <summary>是否有当前打开的项目（用于 UI 绑定启用状态）。</summary>
@@ -115,6 +129,21 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _tableFilter = string.Empty;
 
+    partial void OnTableFilterChanged(string value) => ApplyTableFilter();
+
+    /// <summary>过滤后显示的表格列表（绑定到左侧 ListBox）。</summary>
+    public ObservableCollection<TableEntryViewModel> FilteredTables { get; } = new();
+
+    // ── 表格内容预览 ───────────────────────────────────────────────────────────
+
+    /// <summary>当前预览的表格数据（DataGrid ItemsSource）。</summary>
+    [ObservableProperty]
+    private DataView? _previewDataView;
+
+    /// <summary>当前预览的表格元数据（用于双击列标题打开文件）。</summary>
+    [ObservableProperty]
+    private TableMeta? _selectedTableMeta;
+
     // ── UI 状态 ───────────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -142,15 +171,27 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? OpenAboutRequested;
     public event EventHandler? NewProjectRequested;
     public event EventHandler? OpenProjectRequested;
+    public event EventHandler? NewTableRequested;
+    public event EventHandler? NewEnumRequested;
+    public event EventHandler? NewBeanRequested;
+    public event EventHandler? ImportFileRequested;
 
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
-    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null) { }
+    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null) { }
 
-    public MainWindowViewModel(ILogger<MainWindowViewModel> logger, IProjectManager? projectManager)
+    public MainWindowViewModel(
+        ILogger<MainWindowViewModel> logger,
+        IProjectManager? projectManager,
+        ISchemaService? schemaService,
+        ITablePreviewService? previewService,
+        FileOpenService? fileOpenService)
     {
         _logger = logger;
         _projectManager = projectManager;
+        _schemaService = schemaService;
+        _previewService = previewService;
+        _fileOpenService = fileOpenService;
 
         if (_projectManager != null)
         {
@@ -297,6 +338,139 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>供外部（App 启动时）在 ProjectManager 初始化完成后刷新项目列表。</summary>
     public void SyncProjectsFromManager() => SyncProjectList();
 
+    // ── 表格选中/预览 ──────────────────────────────────────────────────────────
+
+    partial void OnSelectedTableChanged(TableEntryViewModel? value)
+    {
+        if (value == null || CurrentProject == null || _previewService == null)
+        {
+            PreviewDataView = null;
+            SelectedTableMeta = null;
+            return;
+        }
+
+        var meta = GetMetaForEntry(value);
+        SelectedTableMeta = meta;
+
+        if (meta == null)
+        {
+            PreviewDataView = null;
+            return;
+        }
+
+        _ = LoadPreviewAsync(meta);
+    }
+
+    private async Task LoadPreviewAsync(TableMeta meta)
+    {
+        if (_previewService == null || CurrentProject == null)
+        {
+            return;
+        }
+
+        var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", meta.Input);
+        try
+        {
+            var data = await _previewService.LoadPreviewAsync(absPath);
+            var dt = new DataTable();
+            foreach (var col in data.Columns)
+            {
+                dt.Columns.Add(col, typeof(string));
+            }
+
+            foreach (var row in data.Rows)
+            {
+                var r = dt.NewRow();
+                for (int i = 0; i < row.Count && i < dt.Columns.Count; i++)
+                {
+                    r[i] = row[i];
+                }
+                dt.Rows.Add(r);
+            }
+
+            PreviewDataView = dt.DefaultView;
+            AddLog(LogEntryLevel.Info, $"已加载预览：{meta.DisplayName}（{data.Rows.Count} 行，{data.Columns.Count} 列）");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载预览失败：{Path}", absPath);
+            AddLog(LogEntryLevel.Error, $"预览加载失败：{ex.Message}");
+        }
+    }
+
+    // ── 表格列表刷新 ──────────────────────────────────────────────────────────
+
+    private async Task RefreshTablesInternalAsync(string projectPath)
+    {
+        if (_schemaService == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var metas = await _schemaService.LoadTablesAsync(projectPath);
+
+            Tables.Clear();
+            foreach (var meta in metas)
+            {
+                Tables.Add(new TableEntryViewModel { Name = meta.FullName });
+            }
+
+            ApplyTableFilter();
+            AddLog(LogEntryLevel.Info, $"已加载 {metas.Count} 张表格");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "刷新表格列表失败");
+            AddLog(LogEntryLevel.Error, $"刷新表格列表失败：{ex.Message}");
+        }
+    }
+
+    private void ApplyTableFilter()
+    {
+        FilteredTables.Clear();
+        var filter = TableFilter?.Trim() ?? string.Empty;
+
+        foreach (var t in Tables)
+        {
+            if (string.IsNullOrEmpty(filter)
+                || t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                FilteredTables.Add(t);
+            }
+        }
+    }
+
+    /// <summary>将 TableEntryViewModel 映射到对应的 TableMeta（通过 FullName 匹配）。</summary>
+    private TableMeta? GetMetaForEntry(TableEntryViewModel entry)
+    {
+        if (CurrentProject == null || _schemaService == null)
+        {
+            return null;
+        }
+
+        // 简单实现：重新从内存中搜索（TODO：缓存 metas）
+        // 目前通过 Tables 集合顺序反推 index，用 FullName 匹配
+        var tablesXlsx = Path.Combine(CurrentProject.ProjectPath, "Datas", "__tables__.xlsx");
+        if (!File.Exists(tablesXlsx))
+        {
+            return null;
+        }
+
+        // 同步加载（仅用于单次映射，不频繁调用）
+        try
+        {
+            var metas = _schemaService.LoadTablesAsync(CurrentProject.ProjectPath).GetAwaiter().GetResult();
+            return metas.FirstOrDefault(m =>
+                string.Equals(m.FullName, entry.Name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // ── 操作菜单命令 ──────────────────────────────────────────────────────────
 
     private bool CanExport() => !IsExporting;
@@ -339,9 +513,113 @@ public partial class MainWindowViewModel : ViewModelBase
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
-    private void RefreshTables()
+    private async Task RefreshTables()
     {
-        AddLog(LogEntryLevel.Info, "表格列表刷新功能将在后续版本实现");
+        if (CurrentProject == null)
+        {
+            return;
+        }
+
+        await RefreshTablesInternalAsync(CurrentProject.ProjectPath);
+    }
+
+    // ── 快捷操作工具栏命令 ────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void NewTable() => NewTableRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void NewEnum() => NewEnumRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void NewBean() => NewBeanRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void ImportFile() => ImportFileRequested?.Invoke(this, EventArgs.Empty);
+
+    // ── 表格列表上下文命令 ────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void OpenTableFile(TableEntryViewModel? entry)
+    {
+        if (entry == null || CurrentProject == null || _fileOpenService == null)
+        {
+            return;
+        }
+
+        var meta = GetMetaForEntry(entry);
+        if (meta == null)
+        {
+            return;
+        }
+
+        var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", meta.Input);
+        try
+        {
+            _fileOpenService.OpenFile(absPath);
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogEntryLevel.Error, $"打开文件失败：{ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ShowTableInExplorer(TableEntryViewModel? entry)
+    {
+        if (entry == null || CurrentProject == null || _fileOpenService == null)
+        {
+            return;
+        }
+
+        var meta = GetMetaForEntry(entry);
+        if (meta == null)
+        {
+            return;
+        }
+
+        var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", meta.Input);
+        try
+        {
+            _fileOpenService.OpenInExplorer(absPath);
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogEntryLevel.Error, $"在资源管理器中显示失败：{ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveTable(TableEntryViewModel? entry)
+    {
+        if (entry == null)
+        {
+            return;
+        }
+
+        Tables.Remove(entry);
+        ApplyTableFilter();
+        AddLog(LogEntryLevel.Info, $"已从列表中移除：{entry.Name}（文件未被删除）");
+    }
+
+    /// <summary>当用户在预览面板中双击列标题时调用（由 View 层传入列名）。</summary>
+    public void OpenFileAtField(string fieldName)
+    {
+        if (SelectedTableMeta == null || CurrentProject == null || _fileOpenService == null)
+        {
+            return;
+        }
+
+        var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", SelectedTableMeta.Input);
+        try
+        {
+            _fileOpenService.OpenFile(absPath);
+            AddLog(LogEntryLevel.Info, $"已打开文件（字段：{fieldName}）");
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogEntryLevel.Error, $"打开文件失败：{ex.Message}");
+        }
     }
 
     // ── 帮助菜单命令 ──────────────────────────────────────────────────────────

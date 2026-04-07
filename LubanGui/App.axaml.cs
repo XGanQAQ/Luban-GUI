@@ -45,12 +45,20 @@ public partial class App : Application
         // 基础设施层
         services.AddSingleton<AppConfigManager>();
         services.AddSingleton<ProjectConfigManager>();
+        services.AddSingleton<FileOpenService>();
 
         // 业务逻辑层
         services.AddSingleton<IProjectManager, ProjectManager>();
+        services.AddSingleton<ISchemaService, SchemaService>();
+        services.AddSingleton<ITablePreviewService, TablePreviewService>();
 
-        // 注册 ViewModel
-        services.AddSingleton<MainWindowViewModel>();
+        // 注册 ViewModel（手动注入所有依赖）
+        services.AddSingleton<MainWindowViewModel>(sp => new MainWindowViewModel(
+            sp.GetRequiredService<ILogger<MainWindowViewModel>>(),
+            sp.GetRequiredService<IProjectManager>(),
+            sp.GetRequiredService<ISchemaService>(),
+            sp.GetRequiredService<ITablePreviewService>(),
+            sp.GetRequiredService<FileOpenService>()));
     }
 
     public override void OnFrameworkInitializationCompleted()

@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="LubanGui.Views.Dialogs.NewEnumDialog"
+        x:DataType="vm:NewEnumDialogViewModel"
+        Title="新建枚举"
+        Width="520" Height="420"
+        MinWidth="400" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <Design.DataContext>
+        <vm:NewEnumDialogViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+
+        <!-- 枚举全名 -->
+        <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" Text="枚举全名:" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1"
+                     Text="{Binding EnumFullName}"
+                     Watermark="如 cfg.EQualityType" />
+        </Grid>
+
+        <!-- 枚举值列表 -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Margin="0,0,0,8">
+            <DockPanel Margin="8">
+
+                <StackPanel DockPanel.Dock="Top"
+                            Orientation="Horizontal"
+                            Margin="0,0,0,6"
+                            Spacing="8">
+                    <TextBlock Text="枚举值" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Content="+ 添加"
+                            Command="{Binding AddItemCommand}"
+                            Padding="8,2" />
+                </StackPanel>
+
+                <!-- 列标题 -->
+                <Grid DockPanel.Dock="Top"
+                      ColumnDefinitions="*,80,*,32"
+                      Margin="0,0,0,4">
+                    <TextBlock Grid.Column="0" Text="名称" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                    <TextBlock Grid.Column="1" Text="值" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                    <TextBlock Grid.Column="2" Text="注释" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </Grid>
+
+                <ScrollViewer>
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EnumItemViewModel">
+                                <Grid ColumnDefinitions="*,80,*,32" Margin="0,2">
+                                    <TextBox Grid.Column="0" Text="{Binding Name}" Watermark="名称" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="1" Text="{Binding Value}" Watermark="值" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="2" Text="{Binding Comment}" Watermark="注释" Margin="0,0,4,0" />
+                                    <Button Grid.Column="3"
+                                            Content="✕"
+                                            Command="{Binding RemoveCommand}"
+                                            Padding="4,0"
+                                            FontSize="11" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- 按钮行 -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8">
+            <Button Content="取消" Name="CancelButton" Padding="16,6" />
+            <Button Content="创建"
+                    Name="CreateButton"
+                    IsEnabled="{Binding CanCreate}"
+                    Padding="16,6" />
+        </StackPanel>
+
+    </Grid>
+</Window>

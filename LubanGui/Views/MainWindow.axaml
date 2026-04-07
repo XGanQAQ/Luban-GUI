@@ -127,16 +127,20 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="+ 新建表格"
                         IsEnabled="{Binding HasCurrentProject}"
-                        ToolTip.Tip="新建数据表（Week 3 实现）" />
+                        Command="{Binding NewTableCommand}"
+                        ToolTip.Tip="新建数据表 xlsx，并注册到 __tables__.xlsx" />
                 <Button Content="+ 新建枚举"
                         IsEnabled="{Binding HasCurrentProject}"
-                        ToolTip.Tip="新建枚举（Week 3 实现）" />
+                        Command="{Binding NewEnumCommand}"
+                        ToolTip.Tip="新建枚举定义 xlsx" />
                 <Button Content="+ 新建 Bean"
                         IsEnabled="{Binding HasCurrentProject}"
-                        ToolTip.Tip="新建 Bean（Week 3 实现）" />
+                        Command="{Binding NewBeanCommand}"
+                        ToolTip.Tip="新建 Bean 定义 xlsx" />
                 <Button Content="📥 导入文件"
                         IsEnabled="{Binding HasCurrentProject}"
-                        ToolTip.Tip="导入已有 xlsx（Week 3 实现）" />
+                        Command="{Binding ImportFileCommand}"
+                        ToolTip.Tip="将已有 xlsx 文件注册到 __tables__.xlsx" />
             </StackPanel>
         </Border>
 
@@ -163,15 +167,15 @@
 
                     <!-- 无配置提示（Tables 为空时显示） -->
                     <TextBlock DockPanel.Dock="Top"
-                               IsVisible="{Binding !Tables.Count}"
-                               Text="请先在「操作 > 导出设置」中配置 Luban 路径和配置文件"
+                               IsVisible="{Binding !FilteredTables.Count}"
+                               Text="暂无表格。请先新建或导入表格，或在「操作 > 导出设置」中配置 Luban 路径。"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                                FontSize="12"
                                Margin="4,8,4,0" />
 
                     <!-- 表格列表 -->
-                    <ListBox ItemsSource="{Binding Tables}"
+                    <ListBox ItemsSource="{Binding FilteredTables}"
                              SelectedItem="{Binding SelectedTable}"
                              Background="Transparent"
                              Padding="0">
@@ -190,6 +194,20 @@
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="📄 打开文件"
+                                          Command="{Binding OpenTableFileCommand}"
+                                          CommandParameter="{Binding SelectedTable}" />
+                                <MenuItem Header="📂 在资源管理器中显示"
+                                          Command="{Binding ShowTableInExplorerCommand}"
+                                          CommandParameter="{Binding SelectedTable}" />
+                                <Separator />
+                                <MenuItem Header="✕ 从列表中移除"
+                                          Command="{Binding RemoveTableCommand}"
+                                          CommandParameter="{Binding SelectedTable}" />
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                     </ListBox>
 
                 </DockPanel>
@@ -233,11 +251,14 @@
                             BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             BorderThickness="1"
                             CornerRadius="4">
-                        <TextBlock Text="数据预览功能将在后续版本实现"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                   FontSize="13" />
+                        <DataGrid Name="PreviewGrid"
+                                  ItemsSource="{Binding PreviewDataView}"
+                                  AutoGenerateColumns="True"
+                                  IsReadOnly="True"
+                                  GridLinesVisibility="All"
+                                  CanUserReorderColumns="False"
+                                  CanUserResizeColumns="True"
+                                  FontSize="12" />
                     </Border>
 
                 </Grid>
