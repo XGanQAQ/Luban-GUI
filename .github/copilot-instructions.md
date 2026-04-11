@@ -20,10 +20,60 @@
 - `LubanGui\luban\` 是打包进去的 Luban 运行时快照，应视为构建产物/运行时负载，`lubanSrc\` 才是可编辑的源码。
 - `docs\` 中的文档描述了 GUI 的目标架构与路线图（含 `ExportService`、`ConfigManager`、`LubanExecutor`、`ProcessManager` 等服务），是重要的设计背景，但其中大部分结构在 `LubanGui\` 中尚未实现。
 
+## 文档目录结构
+
+`docs\` 分为两大部分：
+
+```
+docs/
+├── lubanDocs/                          # Luban CLI 官方文档（只读参考）
+│   ├── intro.md
+│   ├── basic/
+│   ├── beginner/
+│   ├── manual/
+│   └── other/
+└── lubanGuiDocs/                       # Luban-GUI 项目设计文档
+    ├── product-design/
+    │   └── 01-产品需求文档.md           # 产品定位、用户故事、功能列表、版本路线图
+    ├── engineering/
+    │   ├── 01-技术方案.md               # 技术选型、架构说明、接口定义、NuGet 清单
+    │   ├── 02-层次划分.md               # 五层架构索引，指向各层文件夹
+    │   ├── 03-前端界面设计.md           # 主窗口布局、各对话框 UI 规范
+    │   ├── presentation-layer/         # 表现层模块
+    │   │   ├── MainWindowViewModel.md
+    │   │   ├── TableListViewModel.md
+    │   │   ├── TablePreviewViewModel.md
+    │   │   ├── ExportConfigViewModel.md
+    │   │   └── LogWindowViewModel.md
+    │   ├── service-layer/              # 业务逻辑层模块
+    │   │   ├── ProjectManager.md
+    │   │   ├── SchemaService.md
+    │   │   ├── ExportService.md
+    │   │   └── TablePreviewService.md
+    │   ├── tool-layer/                 # 工具层模块
+    │   │   ├── LubanExecutor.md
+    │   │   ├── LubanCommandBuilder.md
+    │   │   ├── ExcelWriter.md
+    │   │   └── FileOpenService.md
+    │   ├── infrastructure-layer/       # 基础设施层模块
+    │   │   ├── AppConfigManager.md
+    │   │   ├── ProjectConfigManager.md
+    │   │   └── Logger.md
+    │   ├── luban-adapter-layer/        # Luban 源适配层模块（唯一与 lubanSrc 接触点）
+    │   │   ├── LubanSchemaReader.md
+    │   │   ├── LubanConfAdapter.md
+    │   │   └── LubanTypeMapper.md
+    │   └── specifications/             # 数据格式规范
+    │       ├── 01-Excel数据文件规范.md
+    │       └── 02-元数据表规范.md
+    └── project-management/
+        └── 01-开发计划.md              # 版本规划、里程碑、风险表
+```
+
 ## 关键约定
 
 - 当实际行为与设计文档冲突时，以 Luban CLI 源码为准。文档中仍描述了简化参数如 `--input_data_dir`、`--output_dir`、`--codeFormat`，但 `lubanSrc\Luban\Program.cs` 实际暴露的是 `--conf`、`--target`、`--codeTarget`、`--dataTarget`、`--watchDir` 等选项。
-- 将 `docs\01-软件设计文档.md`、`docs\02-技术方案文档.md`、`docs\03-开发计划文档.md` 视为规划/设计参考，而非已实现功能的证明。
+- `docs\lubanGuiDocs\` 是 GUI 的设计文档，以 `engineering\02-层次划分.md` 为架构入口；旧的平铺编号文件（`01-软件设计文档.md` 等）已废弃，以新结构为准。
 - 当前 GUI 遵循默认的 Avalonia + CommunityToolkit.Mvvm 模式：
   - `LubanGui\ViewModels\ViewModelBase.cs` 继承 `ObservableObject`。
   - `LubanGui\App.axaml.cs` 在运行时设置 `DataContext`。
