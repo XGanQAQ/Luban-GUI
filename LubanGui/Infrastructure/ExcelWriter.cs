@@ -13,41 +13,63 @@ namespace LubanGui.Infrastructure;
 /// </summary>
 public static class ExcelWriter
 {
-    // ── __tables__.xlsx 字段（与 Luban ExcelSchemaLoader 对应） ─────────────
+    // ── __tables__.xlsx 字段（列顺序与官方模板一致，B 列起） ─────────────────
+    // B=full_name  C=value_type  D=read_schema_from_file  E=input
+    // F=index  G=mode  H=group  I=comment  J=tags  K=output
 
     private static readonly string[] s_tableFields =
     {
-        "full_name", "value_type", "index", "mode",
-        "group", "comment", "read_schema_from_file", "input", "output", "tags",
+        "full_name", "value_type", "read_schema_from_file", "input",
+        "index", "mode", "group", "comment", "tags", "output",
     };
 
-    // ── __enums__.xlsx：简化格式（MVP - 仅标题，不含 list 子字段） ──────────
+    // ── __enums__.xlsx 顶层字段（B~G 列，H~L 列为合并 *items 子字段） ────────
+    // B=full_name  C=flags  D=unique  E=group  F=comment  G=tags
 
-    private static readonly string[] s_enumFields =
+    private static readonly string[] s_enumTopFields =
     {
-        "full_name", "comment", "flags", "group", "tags", "unique",
+        "full_name", "flags", "unique", "group", "comment", "tags",
     };
 
-    // ── __beans__.xlsx：简化格式（MVP - 仅标题，不含 list 子字段） ──────────
-
-    private static readonly string[] s_beanFields =
+    // *items 子字段（H~L，5 列）
+    private static readonly string[] s_enumItemSubFields =
     {
-        "full_name", "parent", "valueType", "sep", "alias", "comment", "tags", "group",
+        "name", "alias", "value", "comment", "tags",
+    };
+
+    // ── __beans__.xlsx 顶层字段（B~I 列，J~P 列为合并 *fields 子字段） ───────
+    // B=full_name  C=parent  D=valueType  E=sep  F=alias  G=comment  H=group  I=tags
+
+    private static readonly string[] s_beanTopFields =
+    {
+        "full_name", "parent", "valueType", "sep", "alias", "comment", "group", "tags",
+    };
+
+    // *fields 子字段（J~P，7 列）
+    private static readonly string[] s_beanFieldSubFields =
+    {
+        "name", "alias", "type", "group", "comment", "tags", "variants",
     };
 
     // ── 公共 API ──────────────────────────────────────────────────────────────
 
-    /// <summary>创建空的 __tables__.xlsx（含 ## 行和 ##var 标题行）。</summary>
+    /// <summary>创建空的 __tables__.xlsx（含 ##var 标题行和两行 ## 注释行）。</summary>
     public static void CreateTablesMetaXlsx(string path)
-        => CreateMetaXlsx(path, s_tableFields);
+        => CreateSimpleMetaXlsx(path, s_tableFields);
 
-    /// <summary>创建空的 __enums__.xlsx。</summary>
+    /// <summary>
+    /// 创建空的 __enums__.xlsx。
+    /// 结构：双行 ##var（第二行定义 *items 子字段），H1:L1 合并单元格。
+    /// </summary>
     public static void CreateEnumsMetaXlsx(string path)
-        => CreateMetaXlsx(path, s_enumFields);
+        => CreateEnumsXlsx(path);
 
-    /// <summary>创建空的 __beans__.xlsx。</summary>
+    /// <summary>
+    /// 创建空的 __beans__.xlsx。
+    /// 结构：双行 ##var（第二行定义 *fields 子字段），J1:P1 合并单元格。
+    /// </summary>
     public static void CreateBeansMetaXlsx(string path)
-        => CreateMetaXlsx(path, s_beanFields);
+        => CreateBeansXlsx(path);
 
     /// <summary>
     /// 向已有的 __tables__.xlsx 中追加一条表格记录。
@@ -64,17 +86,19 @@ public static class ExcelWriter
 
         int nextRow = FindNextDataRow(sheet);
 
-        // A 列留空；从 B 列写 full_name, C 列写 value_type …
+        // A 列留空；从 B 列起按模板列顺序写入
+        // B=full_name  C=value_type  D=read_schema_from_file  E=input
+        // F=index  G=mode  H=group  I=comment  J=tags  K=output
         sheet.Cell(nextRow, 2).Value = table.FullName;
         sheet.Cell(nextRow, 3).Value = table.ValueType;
-        sheet.Cell(nextRow, 4).Value = table.Index;
-        sheet.Cell(nextRow, 5).Value = table.Mode;
-        sheet.Cell(nextRow, 6).Value = table.Group;
-        sheet.Cell(nextRow, 7).Value = table.Comment;
-        sheet.Cell(nextRow, 8).Value = table.ReadSchemaFromFile ? "true" : "false";
-        sheet.Cell(nextRow, 9).Value = table.Input;
-        sheet.Cell(nextRow, 10).Value = table.Output;
-        sheet.Cell(nextRow, 11).Value = table.Tags;
+        sheet.Cell(nextRow, 4).Value = table.ReadSchemaFromFile ? "true" : "false";
+        sheet.Cell(nextRow, 5).Value = table.Input;
+        sheet.Cell(nextRow, 6).Value = table.Index;
+        sheet.Cell(nextRow, 7).Value = table.Mode;
+        sheet.Cell(nextRow, 8).Value = table.Group;
+        sheet.Cell(nextRow, 9).Value = table.Comment;
+        sheet.Cell(nextRow, 10).Value = table.Tags;
+        sheet.Cell(nextRow, 11).Value = table.Output;
 
         workbook.Save();
     }
@@ -86,11 +110,7 @@ public static class ExcelWriter
     /// <param name="fields">字段定义列表（Name + Type）。</param>
     public static void CreateDataXlsx(string path, IReadOnlyList<FieldDefinition> fields)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        EnsureDirectory(path);
 
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Sheet1");
@@ -136,14 +156,16 @@ public static class ExcelWriter
 
     // ── 私有辅助 ──────────────────────────────────────────────────────────────
 
-    /// <summary>创建带 Luban 标准 ## 行和 ##var 标题行的空元数据 xlsx。</summary>
-    private static void CreateMetaXlsx(string path, string[] fieldNames)
+    /// <summary>
+    /// 创建单行 ##var 标题的简单元数据 xlsx（用于 __tables__.xlsx）。
+    /// </summary>
+    private static void CreateSimpleMetaXlsx(string path, string[] fieldNames)
     {
+        EnsureDirectory(path);
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Sheet1");
 
-        // Row 1：var row（同时作为 meta 行）- A1 = "##var"，B1+ = 字段名
-        // 规范要求 ##var 必须是第一行，否则整个 Sheet 被 Luban 忽略
+        // Row 1：##var + 字段名（第一行即为 meta 行，Luban 规范要求）
         sheet.Cell(1, 1).Value = "##var";
         for (int i = 0; i < fieldNames.Length; i++)
         {
@@ -152,6 +174,82 @@ public static class ExcelWriter
 
         sheet.Columns().AdjustToContents();
         workbook.SaveAs(path);
+    }
+
+    /// <summary>
+    /// 创建 __enums__.xlsx，包含双行 ##var 和 H1:L1 合并的 *items 容器字段。
+    /// </summary>
+    private static void CreateEnumsXlsx(string path)
+    {
+        EnsureDirectory(path);
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.AddWorksheet("Sheet1");
+
+        // 顶层字段数量（B~G）
+        int topCount = s_enumTopFields.Length;          // 6
+        int subCount = s_enumItemSubFields.Length;       // 5
+        int subStartCol = topCount + 2;                  // H = col 8
+
+        // Row 1：##var + 顶层字段名 + *items（合并 subStartCol ~ subStartCol+subCount-1）
+        sheet.Cell(1, 1).Value = "##var";
+        for (int i = 0; i < topCount; i++)
+        {
+            sheet.Cell(1, i + 2).Value = s_enumTopFields[i];
+        }
+        sheet.Cell(1, subStartCol).Value = "*items";
+        sheet.Range(1, subStartCol, 1, subStartCol + subCount - 1).Merge();
+
+        // Row 2：##var + 子字段名（顶层列留空）
+        sheet.Cell(2, 1).Value = "##var";
+        for (int i = 0; i < subCount; i++)
+        {
+            sheet.Cell(2, subStartCol + i).Value = s_enumItemSubFields[i];
+        }
+
+        sheet.Columns().AdjustToContents();
+        workbook.SaveAs(path);
+    }
+
+    /// <summary>
+    /// 创建 __beans__.xlsx，包含双行 ##var 和 J1:P1 合并的 *fields 容器字段。
+    /// </summary>
+    private static void CreateBeansXlsx(string path)
+    {
+        EnsureDirectory(path);
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.AddWorksheet("Sheet1");
+
+        int topCount = s_beanTopFields.Length;           // 8
+        int subCount = s_beanFieldSubFields.Length;      // 7
+        int subStartCol = topCount + 2;                  // J = col 10
+
+        // Row 1：##var + 顶层字段名 + *fields（合并）
+        sheet.Cell(1, 1).Value = "##var";
+        for (int i = 0; i < topCount; i++)
+        {
+            sheet.Cell(1, i + 2).Value = s_beanTopFields[i];
+        }
+        sheet.Cell(1, subStartCol).Value = "*fields";
+        sheet.Range(1, subStartCol, 1, subStartCol + subCount - 1).Merge();
+
+        // Row 2：##var + 子字段名（顶层列留空）
+        sheet.Cell(2, 1).Value = "##var";
+        for (int i = 0; i < subCount; i++)
+        {
+            sheet.Cell(2, subStartCol + i).Value = s_beanFieldSubFields[i];
+        }
+
+        sheet.Columns().AdjustToContents();
+        workbook.SaveAs(path);
+    }
+
+    private static void EnsureDirectory(string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
     }
 
     /// <summary>返回下一个可写入数据的行号（跳过 ## 行和 ##var 行，以及已有数据行）。</summary>
