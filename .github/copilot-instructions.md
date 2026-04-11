@@ -4,6 +4,8 @@
 
 Luban-GUI 是一个基于 Avalonia 的跨平台桌面应用，旨在为 Luban CLI 提供图形化界面，简化配置和执行流程。项目采用 C# 和 .NET 10.0 开发，包含两个独立代码库：`LubanGui\`（GUI 前端）和 `lubanSrc\`（完整的 Luban CLI 源码）。设计文档位于 `docs\lubanGuiDocs\engineering\`，详细描述了架构设计、接口定义、模块职责等。
 
+此项目大部分代码由 Copilot 生成，开发者主要负责设计文档撰写、代码审查和测试验证。Copilot 生成的代码可能不完整或存在逻辑错误，请务必仔细审查并根据设计文档进行修改。
+
 ## 文档是第一公民
 
 - 此项目采用文档驱动设计，所有架构设计、接口定义、模块职责等均以 `docs\lubanGuiDocs\engineering\` 中的 Markdown 文档为准。**请勿直接修改代码来改变设计**，而应修改对应的设计文档，确保代码实现与文档保持一致。
