@@ -9,6 +9,9 @@ public enum TableExportStatus
     Failed,
 }
 
+/// <summary>
+/// 表示一个表格条目的 ViewModel，包含表格名称、导出状态等信息。
+/// </summary>
 public partial class TableEntryViewModel : ObservableObject
 {
     [ObservableProperty]

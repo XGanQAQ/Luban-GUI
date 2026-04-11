@@ -38,19 +38,22 @@ public class SchemaService : ISchemaService
             using var workbook = new XLWorkbook(tablesXlsx);
             var sheet = workbook.Worksheet(1);
 
-            // 检测格式：新格式第一行 A1 = "##"，第二行含字段名；旧格式第一行直接是字段名
+            // 检测格式：
+            //   "##"（纯元行）→ 字段名在第 2 行，数据从第 3 行起
+            //   "##var"/"##type" 等 → 第 1 行本身就是字段名行，数据从第 2 行起
+            //   其他（旧格式）→ 第 1 行是字段名，数据从第 2 行起
             var a1 = sheet.Cell(1, 1).GetString().Trim();
             int headerRow, dataStartRow;
 
-            if (a1.StartsWith("##", StringComparison.Ordinal))
+            if (string.Equals(a1, "##", StringComparison.Ordinal))
             {
-                // 新 Luban 格式
+                // 纯 meta 行，字段名在第 2 行
                 headerRow = 2;
                 dataStartRow = 3;
             }
             else
             {
-                // 旧格式（兼容）
+                // "##var" 行本身含字段名，或旧格式无 ## 行
                 headerRow = 1;
                 dataStartRow = 2;
             }
