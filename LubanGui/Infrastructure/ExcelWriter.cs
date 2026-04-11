@@ -8,8 +8,8 @@ namespace LubanGui.Infrastructure;
 
 /// <summary>
 /// 负责生成和修改符合 Luban 规范的 xlsx 文件。
-/// Luban 要求：第一行 A1 = "##"（meta row），第二行 A = "##var" + 字段名（var row），
-/// 数据行从第三行开始（A 列留空，数据从 B 列起）。
+/// Luban 要求：第一行 A1 = "##var"（var row，同时作为 meta 行），
+/// 数据行从后续行开始（A 列留空，数据从 B 列起）。
 /// </summary>
 public static class ExcelWriter
 {
@@ -80,7 +80,7 @@ public static class ExcelWriter
     }
 
     /// <summary>
-    /// 创建一个符合 Luban 规范的数据表 xlsx（含 ## 行、##var 行和 ##type 行）。
+    /// 创建一个符合 Luban 规范的 xlsx（含 ## 行、##var 行和 ##type 行）。
     /// </summary>
     /// <param name="path">文件路径（含文件名）。</param>
     /// <param name="fields">字段定义列表（Name + Type）。</param>
@@ -95,24 +95,22 @@ public static class ExcelWriter
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Sheet1");
 
-        // Row 1：meta row - A1 = "##"
-        sheet.Cell(1, 1).Value = "##";
-
-        // Row 2：var row - A2 = "##var"，B2+ = 字段名
-        sheet.Cell(2, 1).Value = "##var";
+        // Row 1：var row（同时作为 meta 行）- A1 = "##var"，B1+ = 字段名
+        // 规范要求 ##var 必须是第一行，否则整个 Sheet 被 Luban 忽略
+        sheet.Cell(1, 1).Value = "##var";
         for (int i = 0; i < fields.Count; i++)
         {
-            sheet.Cell(2, i + 2).Value = fields[i].Name;
+            sheet.Cell(1, i + 2).Value = fields[i].Name;
         }
 
-        // Row 3：type row - A3 = "##type"，B3+ = 字段类型
-        sheet.Cell(3, 1).Value = "##type";
+        // Row 2：type row - A2 = "##type"，B2+ = 字段类型
+        sheet.Cell(2, 1).Value = "##type";
         for (int i = 0; i < fields.Count; i++)
         {
-            sheet.Cell(3, i + 2).Value = fields[i].Type;
+            sheet.Cell(2, i + 2).Value = fields[i].Type;
         }
 
-        // Row 4：comment row（如果有注释）- A4 = "##comment"
+        // Row 3（可选）：comment row - A3 = "##"，B3+ = 字段注释（人类可读，不参与解析）
         bool hasComments = false;
         foreach (var f in fields)
         {
@@ -125,10 +123,10 @@ public static class ExcelWriter
 
         if (hasComments)
         {
-            sheet.Cell(4, 1).Value = "##comment";
+            sheet.Cell(3, 1).Value = "##";
             for (int i = 0; i < fields.Count; i++)
             {
-                sheet.Cell(4, i + 2).Value = fields[i].Comment;
+                sheet.Cell(3, i + 2).Value = fields[i].Comment;
             }
         }
 
@@ -144,14 +142,12 @@ public static class ExcelWriter
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Sheet1");
 
-        // Row 1：meta row - A1 = "##"
-        sheet.Cell(1, 1).Value = "##";
-
-        // Row 2：var row - A2 = "##var"，B2+ = 字段名
-        sheet.Cell(2, 1).Value = "##var";
+        // Row 1：var row（同时作为 meta 行）- A1 = "##var"，B1+ = 字段名
+        // 规范要求 ##var 必须是第一行，否则整个 Sheet 被 Luban 忽略
+        sheet.Cell(1, 1).Value = "##var";
         for (int i = 0; i < fieldNames.Length; i++)
         {
-            sheet.Cell(2, i + 2).Value = fieldNames[i];
+            sheet.Cell(1, i + 2).Value = fieldNames[i];
         }
 
         sheet.Columns().AdjustToContents();
