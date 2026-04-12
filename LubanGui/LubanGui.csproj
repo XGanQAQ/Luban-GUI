@@ -36,6 +36,13 @@
     <PackageReference Include="ClosedXML" Version="0.104.2" />
   </ItemGroup>
 
+  <!-- Luban 源适配层：进程内直接引用 Luban 核心库 -->
+  <ItemGroup>
+    <ProjectReference Include="..\lubanSrc\Luban.Core\Luban.Core.csproj" />
+    <ProjectReference Include="..\lubanSrc\Luban.Schema.Builtin\Luban.Schema.Builtin.csproj" />
+    <ProjectReference Include="..\lubanSrc\Luban.DataLoader.Builtin\Luban.DataLoader.Builtin.csproj" />
+  </ItemGroup>
+
   <!-- ===== Luban 构建集成 ===== -->
   <PropertyGroup>
     <LubanProjectPath>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\Luban.csproj</LubanProjectPath>

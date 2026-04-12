@@ -5,6 +5,8 @@ using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
 using LubanGui.Infrastructure;
+using LubanGui.LubanAdapter;
+using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Services;
 using LubanGui.ViewModels;
 using LubanGui.Views;
@@ -31,6 +33,9 @@ public partial class App : Application
 
         Log.Information("Luban GUI 启动中...");
 
+        // 一次性初始化 Luban 内部 Manager（SchemaManager, DataLoaderManager 等）
+        LubanAdapterInitializer.Initialize();
+
         // 配置依赖注入容器
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -51,6 +56,11 @@ public partial class App : Application
         services.AddSingleton<IProjectManager, ProjectManager>();
         services.AddSingleton<ISchemaService, SchemaService>();
         services.AddSingleton<ITablePreviewService, TablePreviewService>();
+
+        // Luban 源适配层
+        services.AddSingleton<ILubanSchemaReader, LubanSchemaReader>();
+        services.AddSingleton<ILubanConfAdapter, LubanConfAdapter>();
+        services.AddSingleton<ILubanTypeMapper, LubanTypeMapper>();
 
         // 注册 ViewModel（手动注入所有依赖）
         services.AddSingleton<MainWindowViewModel>(sp => new MainWindowViewModel(
