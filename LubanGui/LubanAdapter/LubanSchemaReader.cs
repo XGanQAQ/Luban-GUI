@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Luban;
 using Luban.RawDefs;
@@ -25,6 +26,7 @@ public class LubanSchemaReader : ILubanSchemaReader
     public LubanSchemaReader(ILogger<LubanSchemaReader> logger)
     {
         _logger = logger;
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
     public async Task<IReadOnlyList<TableSchemaDto>> ReadTablesAsync(string confPath)
