@@ -144,7 +144,8 @@ public partial class MainWindow : Window
 
     private async void OnOpenExportSettingsRequested(object? sender, EventArgs e)
     {
-        var dialog = new ExportSettingsWindow { DataContext = DataContext };
+        var exportVm = (DataContext as MainWindowViewModel)?.ExportConfig;
+        var dialog = new ExportSettingsWindow { DataContext = exportVm };
         await dialog.ShowDialog(this);
     }
 

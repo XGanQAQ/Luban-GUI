@@ -40,6 +40,12 @@ public class LubanConfAdapter : ILubanConfAdapter
                 File.ReadAllText(confPath, Encoding.UTF8), options)
                 ?? throw new InvalidOperationException("解析 luban.conf 返回 null");
 
+            // 从 targets 列表提取所有目标名（如 all、client、server）
+            var targetNames = raw.Targets?
+                .Where(t => !string.IsNullOrEmpty(t.Name))
+                .Select(t => t.Name!)
+                .ToList() ?? [];
+
             // 从 targets 列表提取 codeTargets / dataTargets / topModule
             var codeTargets = raw.Targets?
                 .Where(t => !string.IsNullOrEmpty(t.Manager) && t.Manager != "Tables")
@@ -61,7 +67,8 @@ public class LubanConfAdapter : ILubanConfAdapter
                 DataTargets: dataTargets,
                 TopModule: topModule,
                 InputDataDirs: string.IsNullOrEmpty(raw.DataDir) ? [] : [raw.DataDir],
-                Groups: groups
+                Groups: groups,
+                TargetNames: targetNames
             );
         });
     }

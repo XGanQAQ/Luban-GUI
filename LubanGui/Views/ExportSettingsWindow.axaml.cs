@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -13,72 +12,67 @@ public partial class ExportSettingsWindow : Window
     {
         InitializeComponent();
 
-        var closeButton = this.FindControl<Button>("CloseButton");
-        if (closeButton != null)
-        {
-            closeButton.Click += CloseButton_Click;
-        }
+        var cancelButton = this.FindControl<Button>("CancelButton");
+        if (cancelButton != null)
+            cancelButton.Click += CancelButton_Click;
+
+        var saveButton = this.FindControl<Button>("SaveButton");
+        if (saveButton != null)
+            saveButton.Click += SaveButton_Click;
     }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
 
-        if (DataContext is MainWindowViewModel vm)
+        if (DataContext is ExportConfigViewModel vm)
         {
-            vm.BrowseLubanPathRequested += OnBrowseLubanPathRequested;
-            vm.BrowseConfFileRequested  += OnBrowseConfFileRequested;
+            vm.BrowseDataOutputPathRequested += OnBrowseDataOutputPathRequested;
+            vm.BrowseCodeOutputPathRequested += OnBrowseCodeOutputPathRequested;
         }
     }
 
-    private async void OnBrowseLubanPathRequested(object? sender, EventArgs e)
+    private async void OnBrowseDataOutputPathRequested(object? sender, EventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var folder = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择 Luban 可执行文件",
+            Title = "选择数据导出目录",
             AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("可执行文件") { Patterns = new[] { "*.exe", "*.dll" } },
-                new FilePickerFileType("所有文件")   { Patterns = new[] { "*" } },
-            },
         });
 
-        if (files.Count > 0 && DataContext is MainWindowViewModel vm)
+        if (folder.Count > 0 && DataContext is ExportConfigViewModel vm)
         {
-            var path = files[0].TryGetLocalPath();
+            var path = folder[0].TryGetLocalPath();
             if (!string.IsNullOrEmpty(path))
-                vm.LubanPath = path;
+                vm.DataOutputPath = path;
         }
     }
 
-    private async void OnBrowseConfFileRequested(object? sender, EventArgs e)
+    private async void OnBrowseCodeOutputPathRequested(object? sender, EventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var folder = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择 luban.conf 配置文件",
+            Title = "选择代码导出目录",
             AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("配置文件") { Patterns = new[] { "*.conf", "*.json" } },
-                new FilePickerFileType("所有文件") { Patterns = new[] { "*" } },
-            },
         });
 
-        if (files.Count > 0 && DataContext is MainWindowViewModel vm)
+        if (folder.Count > 0 && DataContext is ExportConfigViewModel vm)
         {
-            var path = files[0].TryGetLocalPath();
+            var path = folder[0].TryGetLocalPath();
             if (!string.IsNullOrEmpty(path))
-                vm.ConfFile = path;
+                vm.CodeOutputPath = path;
         }
     }
 
-    private async void CloseButton_Click(object? sender, RoutedEventArgs e)
+    private void CancelButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel vm)
-        {
-            await vm.SaveExportConfigAsync();
-        }
+        Close();
+    }
+
+    private async void SaveButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is ExportConfigViewModel vm)
+            await vm.SaveAsync();
         Close();
     }
 }

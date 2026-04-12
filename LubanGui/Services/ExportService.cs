@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using LubanGui.Infrastructure;
 using LubanGui.Models;
 using LubanGui.Services.Luban;
 using Microsoft.Extensions.Logging;
@@ -13,21 +14,35 @@ namespace LubanGui.Services;
 
 /// <summary>
 /// 实现完整导表流程：校验 → 构建参数 → 调用 Luban CLI → 汇总结果。
+/// Luban DLL 路径优先取 <see cref="AppConfigManager"/> 中的自定义路径，
+/// 未配置时自动回退到应用程序目录下的内置 <c>luban\Luban.dll</c>。
 /// </summary>
 public class ExportService : IExportService
 {
     private readonly ILubanExecutor _executor;
+    private readonly IProjectManager _projectManager;
+    private readonly AppConfigManager _appConfigManager;
     private readonly ILogger<ExportService> _logger;
 
-    public ExportService(ILubanExecutor executor, ILogger<ExportService> logger)
+    /// <summary>内置 Luban.dll 的默认路径（相对于应用程序目录）。</summary>
+    private static string DefaultLubanDllPath =>
+        Path.Combine(AppContext.BaseDirectory, "luban", "Luban.dll");
+
+    public ExportService(
+        ILubanExecutor executor,
+        IProjectManager projectManager,
+        AppConfigManager appConfigManager,
+        ILogger<ExportService> logger)
     {
         _executor = executor;
+        _projectManager = projectManager;
+        _appConfigManager = appConfigManager;
         _logger = logger;
     }
 
     /// <inheritdoc/>
     public async Task<ExportResult> ExportAsync(
-        ExportConfig config,
+        ProjectConfig config,
         IProgress<string> progress,
         CancellationToken ct)
     {
@@ -43,15 +58,19 @@ public class ExportService : IExportService
             return new ExportResult { Success = false, ExitCode = -1, ErrorMessage = errMsg };
         }
 
-        // 2. 构建 CLI 参数
-        var args = LubanCommandBuilder.BuildArgs(config);
-        _logger.LogInformation("开始导表，Luban 路径：{Path}", config.LubanPath);
+        // 2. 解析路径
+        var lubanDllPath = ResolveLubanDllPath();
+        var confFilePath = GetConfFilePath();
+
+        // 3. 构建 CLI 参数
+        var args = LubanCommandBuilder.BuildArgs(config, confFilePath);
+        _logger.LogInformation("开始导表，Luban 路径：{Path}", lubanDllPath);
 
         var sw = Stopwatch.StartNew();
         try
         {
-            // 3. 执行 Luban CLI
-            var exitCode = await _executor.RunAsync(config.LubanPath, args, progress, ct);
+            // 4. 执行 Luban CLI
+            var exitCode = await _executor.RunAsync(lubanDllPath, args, progress, ct);
             sw.Stop();
 
             var success = exitCode == 0;
@@ -101,33 +120,58 @@ public class ExportService : IExportService
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<string> ValidateConfig(ExportConfig config)
+    public IReadOnlyList<string> ValidateConfig(ProjectConfig config)
     {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(config.LubanPath))
+        // 校验 Luban DLL 存在
+        var lubanPath = ResolveLubanDllPath();
+        if (!File.Exists(lubanPath))
+            errors.Add($"Luban 可执行文件不存在：{lubanPath}");
+
+        // 校验项目已打开且 luban.conf 存在
+        var projectPath = _projectManager.CurrentProject?.ProjectPath;
+        if (string.IsNullOrEmpty(projectPath))
         {
-            errors.Add("Luban 路径不能为空");
+            errors.Add("当前无已打开的项目");
         }
-        else if (!File.Exists(config.LubanPath))
+        else
         {
-            errors.Add($"Luban 可执行文件不存在：{config.LubanPath}");
+            var confFile = Path.Combine(projectPath, "luban.conf");
+            if (!File.Exists(confFile))
+                errors.Add($"项目配置文件不存在：{confFile}");
         }
 
-        if (string.IsNullOrWhiteSpace(config.ConfFile))
-        {
-            errors.Add("配置文件路径（--conf）不能为空");
-        }
-        else if (!File.Exists(config.ConfFile))
-        {
-            errors.Add($"配置文件不存在：{config.ConfFile}");
-        }
-
+        // 校验导出目标
         if (string.IsNullOrWhiteSpace(config.Target))
-        {
-            errors.Add("导出目标（--target）不能为空");
-        }
+            errors.Add("导出目标不能为空");
+
+        // 校验数据输出路径
+        if (string.IsNullOrWhiteSpace(config.DataOutput.OutputPath))
+            errors.Add("数据输出路径不能为空");
+
+        // 校验代码输出（可选）
+        if (config.CodeOutput.Enabled && string.IsNullOrWhiteSpace(config.CodeOutput.OutputPath))
+            errors.Add("代码输出路径不能为空（已勾选生成代码）");
 
         return errors;
+    }
+
+    /// <summary>
+    /// 解析实际使用的 Luban DLL 路径：
+    /// 优先使用 <see cref="AppConfig.LubanDllPath"/> 中的自定义路径，
+    /// 未设置则回退到内置的 <see cref="DefaultLubanDllPath"/>。
+    /// </summary>
+    private string ResolveLubanDllPath()
+    {
+        var configured = _appConfigManager.GetLubanDllPath();
+        return !string.IsNullOrWhiteSpace(configured) ? configured : DefaultLubanDllPath;
+    }
+
+    /// <summary>返回当前项目的 luban.conf 完整路径。</summary>
+    private string GetConfFilePath()
+    {
+        var projectPath = _projectManager.CurrentProject?.ProjectPath ?? string.Empty;
+        return Path.Combine(projectPath, "luban.conf");
     }
 }

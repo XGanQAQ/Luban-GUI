@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using LubanGui.Infrastructure;
+using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Models;
 using LubanGui.Services;
 
@@ -28,6 +29,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FileOpenService? _fileOpenService;
     private readonly IExportService? _exportService;
     private readonly ProjectConfigManager? _configManager;
+    private readonly ILubanConfAdapter? _confAdapter;
 
     /// <summary>当前正在进行的导表操作的取消令牌源。</summary>
     private CancellationTokenSource? _exportCts;
@@ -72,59 +74,10 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>是否有当前打开的项目（用于 UI 绑定启用状态）。</summary>
     public bool HasCurrentProject => CurrentProject != null;
 
-    // ── 导出配置：GUI 专有 ────────────────────────────────────────────────────
+    // ── 导出配置 ──────────────────────────────────────────────────────────────
 
-    [ObservableProperty]
-    private string _profileName = "Default";
-
-    // ── 导出配置：必填参数 ────────────────────────────────────────────────────
-
-    [ObservableProperty]
-    private string _lubanPath = string.Empty;
-
-    [ObservableProperty]
-    private string _confFile = string.Empty;
-
-    [ObservableProperty]
-    private string _target = string.Empty;
-
-    // ── 导出配置：常用可选列表 ────────────────────────────────────────────────
-
-    public ObservableCollection<StringItemViewModel> CodeTargets { get; } = new();
-    public ObservableCollection<StringItemViewModel> DataTargets { get; } = new();
-    public ObservableCollection<StringItemViewModel> Xargs { get; } = new();
-
-    // ── 导出配置：高级可选标量 ────────────────────────────────────────────────
-
-    [ObservableProperty]
-    private string _schemaCollector = "default";
-
-    [ObservableProperty]
-    private string _pipeline = "default";
-
-    [ObservableProperty]
-    private string _timeZone = string.Empty;
-
-    [ObservableProperty]
-    private string _logConfig = "nlog.xml";
-
-    [ObservableProperty]
-    private bool _validationFailAsError;
-
-    [ObservableProperty]
-    private bool _forceLoadTableDatas;
-
-    [ObservableProperty]
-    private bool _verbose;
-
-    // ── 导出配置：高级可选列表 ────────────────────────────────────────────────
-
-    public ObservableCollection<StringItemViewModel> OutputTables { get; } = new();
-    public ObservableCollection<StringItemViewModel> IncludeTags { get; } = new();
-    public ObservableCollection<StringItemViewModel> ExcludeTags { get; } = new();
-    public ObservableCollection<StringItemViewModel> Variants { get; } = new();
-    public ObservableCollection<StringItemViewModel> CustomTemplateDirs { get; } = new();
-    public ObservableCollection<StringItemViewModel> WatchDirs { get; } = new();
+    /// <summary>导出配置 ViewModel，绑定到「导出配置」窗口。</summary>
+    public ExportConfigViewModel ExportConfig { get; }
 
     // ── 表格列表 ──────────────────────────────────────────────────────────────
 
@@ -189,15 +142,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? NewBeanRequested;
     public event EventHandler? ImportFileRequested;
 
-    /// <summary>由 ExportSettingsWindow 订阅，弹出文件选择对话框选择 Luban 可执行文件。</summary>
-    public event EventHandler? BrowseLubanPathRequested;
-
-    /// <summary>由 ExportSettingsWindow 订阅，弹出文件选择对话框选择 luban.conf 配置文件。</summary>
-    public event EventHandler? BrowseConfFileRequested;
-
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
-    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null) { }
+    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null, null) { }
 
     public MainWindowViewModel(
         ILogger<MainWindowViewModel> logger,
@@ -206,7 +153,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ITablePreviewService? previewService,
         FileOpenService? fileOpenService,
         IExportService? exportService,
-        ProjectConfigManager? configManager)
+        ProjectConfigManager? configManager,
+        ILubanConfAdapter? confAdapter)
     {
         _logger = logger;
         _projectManager = projectManager;
@@ -215,6 +163,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _fileOpenService = fileOpenService;
         _exportService = exportService;
         _configManager = configManager;
+        _confAdapter = confAdapter;
+
+        ExportConfig = new ExportConfigViewModel(SaveProjectConfigAsync);
 
         if (_projectManager != null)
         {
@@ -489,7 +440,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
 
-        var config = BuildConfig();
+        var config = ExportConfig.ToProjectConfig();
 
         // 校验
         var errors = _exportService.ValidateConfig(config);
@@ -585,7 +536,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
-        var config = BuildConfig();
+        var config = ExportConfig.ToProjectConfig();
         var errors = _exportService.ValidateConfig(config);
 
         if (errors.Count == 0)
@@ -741,58 +692,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ShowAbout() =>
         OpenAboutRequested?.Invoke(this, EventArgs.Empty);
 
-    // ── 列表项操作命令（导出配置用） ──────────────────────────────────────────
-
-    [RelayCommand]
-    private void AddCodeTarget() =>
-        CodeTargets.Add(new StringItemViewModel(string.Empty, item => CodeTargets.Remove(item)));
-
-    [RelayCommand]
-    private void AddDataTarget() =>
-        DataTargets.Add(new StringItemViewModel(string.Empty, item => DataTargets.Remove(item)));
-
-    [RelayCommand]
-    private void AddXargs() =>
-        Xargs.Add(new StringItemViewModel(string.Empty, item => Xargs.Remove(item)));
-
-    [RelayCommand]
-    private void AddOutputTable() =>
-        OutputTables.Add(new StringItemViewModel(string.Empty, item => OutputTables.Remove(item)));
-
-    [RelayCommand]
-    private void AddIncludeTag() =>
-        IncludeTags.Add(new StringItemViewModel(string.Empty, item => IncludeTags.Remove(item)));
-
-    [RelayCommand]
-    private void AddExcludeTag() =>
-        ExcludeTags.Add(new StringItemViewModel(string.Empty, item => ExcludeTags.Remove(item)));
-
-    [RelayCommand]
-    private void AddVariant() =>
-        Variants.Add(new StringItemViewModel(string.Empty, item => Variants.Remove(item)));
-
-    [RelayCommand]
-    private void AddCustomTemplateDir() =>
-        CustomTemplateDirs.Add(new StringItemViewModel(string.Empty, item => CustomTemplateDirs.Remove(item)));
-
-    [RelayCommand]
-    private void AddWatchDir() =>
-        WatchDirs.Add(new StringItemViewModel(string.Empty, item => WatchDirs.Remove(item)));
-
-    // ── 文件浏览命令 ──────────────────────────────────────────────────────────
-
-    [RelayCommand]
-    private void BrowseLubanPath()
-    {
-        BrowseLubanPathRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    [RelayCommand]
-    private void BrowseConfFile()
-    {
-        BrowseConfFileRequested?.Invoke(this, EventArgs.Empty);
-    }
-
     // ── 日志操作命令 ──────────────────────────────────────────────────────────
 
     [RelayCommand]
@@ -802,88 +701,18 @@ public partial class MainWindowViewModel : ViewModelBase
         _logger.LogInformation("日志已清空");
     }
 
-    // ── 辅助方法 ──────────────────────────────────────────────────────────────
+    // ── 导出配置持久化 ────────────────────────────────────────────────────────
 
-    public ExportConfig BuildConfig() => new()
-    {
-        LubanPath = LubanPath,
-        ConfFile = ConfFile,
-        Target = Target,
-        CodeTargets = CodeTargets.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        DataTargets = DataTargets.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        Xargs = Xargs.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        SchemaCollector = SchemaCollector,
-        Pipeline = Pipeline,
-        OutputTables = OutputTables.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        IncludeTags = IncludeTags.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        ExcludeTags = ExcludeTags.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        Variants = Variants.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        TimeZone = TimeZone,
-        CustomTemplateDirs = CustomTemplateDirs.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        ValidationFailAsError = ValidationFailAsError,
-        LogConfig = LogConfig,
-        WatchDirs = WatchDirs.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
-        ForceLoadTableDatas = ForceLoadTableDatas,
-        Verbose = Verbose,
-        ProfileName = ProfileName,
-    };
-
-    /// <summary>从 ExportConfig 将值填充回 ViewModel 属性。</summary>
-    public void ApplyExportConfig(ExportConfig config)
-    {
-        ProfileName = config.ProfileName;
-        LubanPath   = config.LubanPath;
-        ConfFile    = config.ConfFile;
-        Target      = config.Target;
-
-        void SyncList(ObservableCollection<StringItemViewModel> col, IEnumerable<string> values)
-        {
-            col.Clear();
-            foreach (var v in values)
-                col.Add(new StringItemViewModel(v, item => col.Remove(item)));
-        }
-
-        SyncList(CodeTargets, config.CodeTargets);
-        SyncList(DataTargets, config.DataTargets);
-        SyncList(Xargs, config.Xargs);
-        SyncList(OutputTables, config.OutputTables);
-        SyncList(IncludeTags, config.IncludeTags);
-        SyncList(ExcludeTags, config.ExcludeTags);
-        SyncList(Variants, config.Variants);
-        SyncList(CustomTemplateDirs, config.CustomTemplateDirs);
-        SyncList(WatchDirs, config.WatchDirs);
-
-        SchemaCollector       = config.SchemaCollector;
-        Pipeline              = config.Pipeline;
-        TimeZone              = config.TimeZone;
-        LogConfig             = config.LogConfig;
-        ValidationFailAsError = config.ValidationFailAsError;
-        ForceLoadTableDatas   = config.ForceLoadTableDatas;
-        Verbose               = config.Verbose;
-    }
-
-    /// <summary>从 projectDir 异步加载 ExportConfig 并应用到 ViewModel。</summary>
-    private async Task LoadExportConfigAsync(string projectDir)
-    {
-        if (_configManager == null) return;
-        try
-        {
-            var config = await _configManager.LoadExportConfigAsync(projectDir);
-            ApplyExportConfig(config);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "加载导出配置失败");
-        }
-    }
-
-    /// <summary>将当前 ViewModel 的导出配置保存到当前项目目录。</summary>
-    public async Task SaveExportConfigAsync()
+    /// <summary>
+    /// 将 <paramref name="config"/> 持久化到当前项目目录下的 projectConfig.json。
+    /// 由 <see cref="ExportConfigViewModel"/> 的保存委托调用。
+    /// </summary>
+    private async Task SaveProjectConfigAsync(ProjectConfig config)
     {
         if (_configManager == null || CurrentProject == null) return;
         try
         {
-            await _configManager.SaveExportConfigAsync(CurrentProject.ProjectPath, BuildConfig());
+            await _configManager.SaveAsync(CurrentProject.ProjectPath, config);
             AddLog(LogEntryLevel.Success, "导出配置已保存");
         }
         catch (Exception ex)
@@ -892,6 +721,43 @@ public partial class MainWindowViewModel : ViewModelBase
             AddLog(LogEntryLevel.Error, $"保存配置失败：{ex.Message}");
         }
     }
+
+    /// <summary>从项目目录加载 ProjectConfig 并应用到 ExportConfigViewModel。</summary>
+    private async Task LoadExportConfigAsync(string projectDir)
+    {
+        if (_configManager == null) return;
+        try
+        {
+            var config = await _configManager.LoadAsync(projectDir);
+            ExportConfig.LoadFromConfig(config);
+
+            // 从 luban.conf 读取可用的导出目标列表
+            if (_confAdapter != null)
+            {
+                var confPath = Path.Combine(projectDir, "luban.conf");
+                if (File.Exists(confPath))
+                {
+                    try
+                    {
+                        var confDto = await _confAdapter.ReadAsync(confPath);
+                        if (confDto.TargetNames.Count > 0)
+                            ExportConfig.UpdateAvailableTargets(confDto.TargetNames);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "读取 luban.conf 目标列表失败，使用默认值");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "加载导出配置失败");
+        }
+    }
+
+    // ── 日志辅助 ──────────────────────────────────────────────────────────────
+
     public void AddLog(LogEntryLevel level, string message)
     {
         const int MaxLogEntries = 10_000;
@@ -912,4 +778,3 @@ public partial class MainWindowViewModel : ViewModelBase
         });
     }
 }
-

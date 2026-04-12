@@ -18,12 +18,12 @@ public interface IExportService
     /// <param name="progress">实时进度回调，每行 stdout/stderr 输出触发一次。</param>
     /// <param name="ct">取消令牌。</param>
     Task<ExportResult> ExportAsync(
-        ExportConfig config,
+        ProjectConfig config,
         IProgress<string> progress,
         CancellationToken ct);
 
     /// <summary>
     /// 校验导出配置的合法性，返回错误消息列表（空列表表示合法）。
     /// </summary>
-    IReadOnlyList<string> ValidateConfig(ExportConfig config);
+    IReadOnlyList<string> ValidateConfig(ProjectConfig config);
 }

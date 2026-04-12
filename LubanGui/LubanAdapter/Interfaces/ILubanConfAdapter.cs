@@ -18,5 +18,6 @@ public record LubanConfDto(
     IReadOnlyList<string> DataTargets,
     string TopModule,
     IReadOnlyList<string> InputDataDirs,
-    IReadOnlyDictionary<string, string> Groups
+    IReadOnlyDictionary<string, string> Groups,
+    IReadOnlyList<string> TargetNames
 );

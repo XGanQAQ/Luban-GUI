@@ -73,7 +73,8 @@ public partial class App : Application
             sp.GetRequiredService<ITablePreviewService>(),
             sp.GetRequiredService<FileOpenService>(),
             sp.GetRequiredService<IExportService>(),
-            sp.GetRequiredService<ProjectConfigManager>()));
+            sp.GetRequiredService<ProjectConfigManager>(),
+            sp.GetRequiredService<ILubanConfAdapter>()));
     }
 
     public override void OnFrameworkInitializationCompleted()

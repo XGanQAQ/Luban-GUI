@@ -114,4 +114,7 @@ public class AppConfigManager
         _cache.LastOpenedProjectName = projectName;
         await SaveAsync();
     }
+
+    /// <summary>获取自定义的 Luban DLL 路径（空字符串表示使用内置默认）。</summary>
+    public string GetLubanDllPath() => _cache.LubanDllPath;
 }

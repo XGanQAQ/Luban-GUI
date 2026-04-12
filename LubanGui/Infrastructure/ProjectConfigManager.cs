@@ -70,49 +70,4 @@ public class ProjectConfigManager
             throw;
         }
     }
-
-    // ── ExportConfig 持久化（保存到 exportConfig.json） ──────────────────────
-
-    /// <summary>
-    /// 从指定项目目录加载 exportConfig.json；若不存在则返回默认配置。
-    /// </summary>
-    public async Task<ExportConfig> LoadExportConfigAsync(string projectDir)
-    {
-        var path = Path.Combine(projectDir, "exportConfig.json");
-        if (!File.Exists(path))
-        {
-            _logger.LogInformation("项目 {Dir} 的 exportConfig.json 不存在，返回默认配置", projectDir);
-            return new ExportConfig();
-        }
-
-        try
-        {
-            await using var stream = File.OpenRead(path);
-            var config = await JsonSerializer.DeserializeAsync<ExportConfig>(stream, JsonOptions);
-            return config ?? new ExportConfig();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "读取 {Path} 失败，返回默认配置", path);
-            return new ExportConfig();
-        }
-    }
-
-    /// <summary>将 ExportConfig 持久化到指定项目目录下的 exportConfig.json。</summary>
-    public async Task SaveExportConfigAsync(string projectDir, ExportConfig config)
-    {
-        var path = Path.Combine(projectDir, "exportConfig.json");
-        try
-        {
-            Directory.CreateDirectory(projectDir);
-            await using var stream = File.Create(path);
-            await JsonSerializer.SerializeAsync(stream, config, JsonOptions);
-            _logger.LogDebug("exportConfig.json 已保存到 {Path}", path);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "保存 {Path} 失败", path);
-            throw;
-        }
-    }
 }

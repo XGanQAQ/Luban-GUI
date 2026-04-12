@@ -12,4 +12,10 @@ public class AppConfig
 
     /// <summary>上次打开的项目名称；空字符串表示无上次记录。</summary>
     public string LastOpenedProjectName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Luban.dll 的自定义路径。
+    /// 为空时自动使用 GUI 内置的 <c>luban\Luban.dll</c>（位于应用程序目录下）。
+    /// </summary>
+    public string LubanDllPath { get; set; } = string.Empty;
 }
