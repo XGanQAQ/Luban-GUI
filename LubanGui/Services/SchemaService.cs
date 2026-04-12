@@ -1,113 +1,71 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using ClosedXML.Excel;
 using LubanGui.Infrastructure;
+using LubanGui.LubanAdapter.Dtos;
+using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Models;
 using Microsoft.Extensions.Logging;
 
 namespace LubanGui.Services;
 
 /// <summary>
-/// 实现 <see cref="ISchemaService"/>，使用 ClosedXML 读写 Luban 元数据 xlsx 文件。
+/// 实现 <see cref="ISchemaService"/>，通过 <see cref="ILubanSchemaReader"/> 读取 Luban Schema，
+/// 通过 <see cref="ExcelWriter"/> 写入元数据 xlsx 文件。
 /// </summary>
 public class SchemaService : ISchemaService
 {
+    private readonly ILubanSchemaReader _schemaReader;
     private readonly ILogger<SchemaService> _logger;
 
-    public SchemaService(ILogger<SchemaService> logger)
+    public SchemaService(ILubanSchemaReader schemaReader, ILogger<SchemaService> logger)
     {
+        _schemaReader = schemaReader;
         _logger = logger;
     }
 
     /// <inheritdoc/>
-    public Task<List<TableMeta>> LoadTablesAsync(string projectPath)
+    public async Task<List<TableMeta>> LoadTablesAsync(string projectPath)
     {
-        var tables = new List<TableMeta>();
-        var tablesXlsx = Path.Combine(projectPath, "Datas", "__tables__.xlsx");
+        var confPath = Path.Combine(projectPath, "luban.conf");
 
-        if (!File.Exists(tablesXlsx))
+        if (!File.Exists(confPath))
         {
-            _logger.LogWarning("__tables__.xlsx 不存在：{Path}", tablesXlsx);
-            return Task.FromResult(tables);
+            _logger.LogWarning("luban.conf 不存在，跳过 Schema 读取：{Path}", confPath);
+            return [];
         }
 
         try
         {
-            using var workbook = new XLWorkbook(tablesXlsx);
-            var sheet = workbook.Worksheet(1);
+            var tableDtos = await _schemaReader.ReadTablesAsync(confPath);
+            var tables = tableDtos.Select(ToTableMeta).ToList();
 
-            // 检测格式：
-            //   "##"（纯元行）→ 字段名在第 2 行，数据从第 3 行起
-            //   "##var"/"##type" 等 → 第 1 行本身就是字段名行，数据从第 2 行起
-            //   其他（旧格式）→ 第 1 行是字段名，数据从第 2 行起
-            var a1 = sheet.Cell(1, 1).GetString().Trim();
-            int headerRow, dataStartRow;
-
-            if (string.Equals(a1, "##", StringComparison.Ordinal))
-            {
-                // 纯 meta 行，字段名在第 2 行
-                headerRow = 2;
-                dataStartRow = 3;
-            }
-            else
-            {
-                // "##var" 行本身含字段名，或旧格式无 ## 行
-                headerRow = 1;
-                dataStartRow = 2;
-            }
-
-            // 构建 列号 → 字段名 映射（从第2列开始，第1列是 ##var 标记）
-            var colMap = BuildColumnMap(sheet, headerRow);
-
-            // 读取数据行
-            var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
-            for (int row = dataStartRow; row <= lastRow; row++)
-            {
-                var aVal = sheet.Cell(row, 1).GetString().Trim();
-
-                // 跳过 ## 开头的行（元数据行）
-                if (aVal.StartsWith("##", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                // 读取 full_name（必填）
-                var fullName = GetCol(sheet, row, colMap, "full_name").Trim();
-                if (string.IsNullOrWhiteSpace(fullName))
-                {
-                    continue;
-                }
-
-                var table = new TableMeta
-                {
-                    FullName = fullName,
-                    ValueType = GetCol(sheet, row, colMap, "value_type"),
-                    Index = GetCol(sheet, row, colMap, "index"),
-                    Mode = GetCol(sheet, row, colMap, "mode"),
-                    Group = GetCol(sheet, row, colMap, "group"),
-                    Comment = GetCol(sheet, row, colMap, "comment"),
-                    ReadSchemaFromFile = GetCol(sheet, row, colMap, "read_schema_from_file")
-                        .Equals("true", StringComparison.OrdinalIgnoreCase),
-                    Input = GetCol(sheet, row, colMap, "input"),
-                    Output = GetCol(sheet, row, colMap, "output"),
-                    Tags = GetCol(sheet, row, colMap, "tags"),
-                };
-
-                tables.Add(table);
-            }
-
-            _logger.LogInformation("加载了 {Count} 张表格 from {Path}", tables.Count, tablesXlsx);
+            _logger.LogInformation("加载了 {Count} 张表格 from {Path}", tables.Count, confPath);
+            return tables;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "读取 __tables__.xlsx 失败：{Path}", tablesXlsx);
+            _logger.LogError(ex, "读取 Schema 失败：{Path}", confPath);
             throw;
         }
-
-        return Task.FromResult(tables);
     }
+
+    /// <summary>将 <see cref="TableSchemaDto"/> 映射为 <see cref="TableMeta"/>。</summary>
+    private static TableMeta ToTableMeta(TableSchemaDto dto) => new()
+    {
+        FullName = dto.FullName,
+        ValueType = dto.ValueType,
+        Index = dto.Index,
+        Mode = dto.Mode,
+        Group = string.Join(",", dto.Groups),
+        Comment = dto.Comment,
+        ReadSchemaFromFile = dto.ReadSchemaFromFile,
+        Input = dto.InputFiles.Count > 0 ? dto.InputFiles[0] : string.Empty,
+        Output = dto.OutputFile,
+        Tags = string.Empty,
+    };
 
     /// <inheritdoc/>
     public async Task<TableMeta> CreateTableAsync(
@@ -243,33 +201,4 @@ public class SchemaService : ISchemaService
         return Task.CompletedTask;
     }
 
-    // ── 私有辅助 ──────────────────────────────────────────────────────────────
-
-    /// <summary>从指定行构建 "字段名 → 列号（1-based）" 的映射。</summary>
-    private static Dictionary<string, int> BuildColumnMap(IXLWorksheet sheet, int headerRow)
-    {
-        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var lastCol = sheet.Row(headerRow).LastCellUsed()?.Address.ColumnNumber ?? 0;
-
-        for (int col = 1; col <= lastCol; col++)
-        {
-            var name = sheet.Cell(headerRow, col).GetString().Trim();
-            if (!string.IsNullOrEmpty(name) && !name.StartsWith("##", StringComparison.Ordinal))
-            {
-                map.TryAdd(name, col);
-            }
-        }
-
-        return map;
-    }
-
-    private static string GetCol(IXLWorksheet sheet, int row, Dictionary<string, int> colMap, string fieldName)
-    {
-        if (!colMap.TryGetValue(fieldName, out int col))
-        {
-            return string.Empty;
-        }
-
-        return sheet.Cell(row, col).GetString().Trim();
-    }
 }

@@ -369,9 +369,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", meta.Input);
+        var confPath = Path.Combine(CurrentProject.ProjectPath, "luban.conf");
         try
         {
-            var data = await _previewService.LoadPreviewAsync(absPath);
+            var data = await _previewService.LoadPreviewAsync(absPath, confPath);
             var dt = new DataTable();
             foreach (var col in data.Columns)
             {
