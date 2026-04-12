@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug LubanGui",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/LubanGui/bin/Debug/net8.0/LubanGui.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/LubanGui",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        }
+    ]
+}
