@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Data;
 using System.Diagnostics;
@@ -42,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OpenProjectFolderCommand.NotifyCanExecuteChanged();
         Tables.Clear();
         FilteredTables.Clear();
+        _cachedTableMetas.Clear();
         PreviewDataView = null;
         SelectedTableMeta = null;
 
@@ -120,6 +122,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<StringItemViewModel> WatchDirs { get; } = new();
 
     // ── 表格列表 ──────────────────────────────────────────────────────────────
+
+    /// <summary>最近一次 RefreshTablesInternalAsync 加载的元数据缓存，供 GetMetaForEntry 同步查找使用。</summary>
+    private List<TableMeta> _cachedTableMetas = new();
 
     public ObservableCollection<TableEntryViewModel> Tables { get; } = new();
 
@@ -412,6 +417,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var metas = await _schemaService.LoadTablesAsync(projectPath);
 
+            _cachedTableMetas = metas;
             Tables.Clear();
             foreach (var meta in metas)
             {
@@ -446,30 +452,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>将 TableEntryViewModel 映射到对应的 TableMeta（通过 FullName 匹配）。</summary>
     private TableMeta? GetMetaForEntry(TableEntryViewModel entry)
     {
-        if (CurrentProject == null || _schemaService == null)
-        {
-            return null;
-        }
-
-        // 简单实现：重新从内存中搜索（TODO：缓存 metas）
-        // 目前通过 Tables 集合顺序反推 index，用 FullName 匹配
-        var tablesXlsx = Path.Combine(CurrentProject.ProjectPath, "Datas", "__tables__.xlsx");
-        if (!File.Exists(tablesXlsx))
-        {
-            return null;
-        }
-
-        // 同步加载（仅用于单次映射，不频繁调用）
-        try
-        {
-            var metas = _schemaService.LoadTablesAsync(CurrentProject.ProjectPath).GetAwaiter().GetResult();
-            return metas.FirstOrDefault(m =>
-                string.Equals(m.FullName, entry.Name, StringComparison.OrdinalIgnoreCase));
-        }
-        catch
-        {
-            return null;
-        }
+        return _cachedTableMetas.FirstOrDefault(m =>
+            string.Equals(m.FullName, entry.Name, StringComparison.OrdinalIgnoreCase));
     }
 
     // ── 操作菜单命令 ──────────────────────────────────────────────────────────
