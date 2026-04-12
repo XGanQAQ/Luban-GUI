@@ -47,6 +47,13 @@ public partial class MainWindow : Window
         {
             grid.DoubleTapped += OnPreviewGridDoubleTapped;
         }
+
+        // 双击表格条目打开对应 xlsx 文件
+        var listBox = this.FindControl<ListBox>("TableListBox");
+        if (listBox != null)
+        {
+            listBox.DoubleTapped += OnTableListBoxDoubleTapped;
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -55,6 +62,12 @@ public partial class MainWindow : Window
         {
             RebuildPreviewColumns();
         }
+    }
+
+    private void OnTableListBoxDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        vm.OpenTableFileCommand.Execute(vm.SelectedTable);
     }
 
     /// <summary>
