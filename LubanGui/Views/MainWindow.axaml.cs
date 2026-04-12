@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using LubanGui.Models;
@@ -36,6 +38,7 @@ public partial class MainWindow : Window
             vm.NewEnumRequested += OnNewEnumRequested;
             vm.NewBeanRequested += OnNewBeanRequested;
             vm.ImportFileRequested += OnImportFileRequested;
+            vm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
         // 绑定 DataGrid 列标题双击事件（在 PreviewGrid 的列头上双击打开文件）
@@ -43,6 +46,39 @@ public partial class MainWindow : Window
         if (grid != null)
         {
             grid.DoubleTapped += OnPreviewGridDoubleTapped;
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.PreviewColumnNames))
+        {
+            RebuildPreviewColumns();
+        }
+    }
+
+    /// <summary>
+    /// 根据 ViewModel 的 PreviewColumnNames 重建 DataGrid 列。
+    /// 使用整数索引绑定 <c>[i]</c>，对应行数据 <c>IList&lt;string&gt;</c> 的第 i 个元素。
+    /// </summary>
+    private void RebuildPreviewColumns()
+    {
+        var grid = this.FindControl<DataGrid>("PreviewGrid");
+        if (grid == null) return;
+
+        grid.Columns.Clear();
+
+        if (DataContext is not MainWindowViewModel vm || vm.PreviewColumnNames == null) return;
+
+        var columns = vm.PreviewColumnNames;
+        for (int i = 0; i < columns.Count; i++)
+        {
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = columns[i],
+                Binding = new Binding($"[{i}]"),
+                IsReadOnly = true,
+            });
         }
     }
 

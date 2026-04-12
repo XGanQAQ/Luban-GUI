@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -44,8 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Tables.Clear();
         FilteredTables.Clear();
         _cachedTableMetas.Clear();
-        PreviewDataView = null;
-        SelectedTableMeta = null;
+        ClearPreview();
 
         // 当用户通过 ComboBox 切换项目时，通知 ProjectManager（避免重入）
         if (!_isSyncingProject && _projectManager != null && value != null
@@ -141,9 +139,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ── 表格内容预览 ───────────────────────────────────────────────────────────
 
-    /// <summary>当前预览的表格数据（DataGrid ItemsSource）。</summary>
+    /// <summary>当前预览表格的列名列表（null 表示无预览）；变更时由 View 层重建 DataGrid 列。</summary>
     [ObservableProperty]
-    private DataView? _previewDataView;
+    private IList<string>? _previewColumnNames;
+
+    /// <summary>当前预览表格的数据行，每行是与 <see cref="PreviewColumnNames"/> 等长的字符串列表。</summary>
+    public ObservableCollection<IList<string>> PreviewRows { get; } = new();
 
     /// <summary>当前预览的表格元数据（用于双击列标题打开文件）。</summary>
     [ObservableProperty]
@@ -349,8 +350,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (value == null || CurrentProject == null || _previewService == null)
         {
-            PreviewDataView = null;
-            SelectedTableMeta = null;
+            ClearPreview();
             return;
         }
 
@@ -359,7 +359,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (meta == null)
         {
-            PreviewDataView = null;
+            ClearPreview();
             return;
         }
 
@@ -378,23 +378,16 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var data = await _previewService.LoadPreviewAsync(absPath, confPath);
-            var dt = new DataTable();
-            foreach (var col in data.Columns)
-            {
-                dt.Columns.Add(col, typeof(string));
-            }
+
+            // Clear rows before changing columns to avoid index-out-of-range during rebind
+            PreviewRows.Clear();
+            PreviewColumnNames = data.Columns.Count > 0 ? data.Columns : null;
 
             foreach (var row in data.Rows)
             {
-                var r = dt.NewRow();
-                for (int i = 0; i < row.Count && i < dt.Columns.Count; i++)
-                {
-                    r[i] = row[i];
-                }
-                dt.Rows.Add(r);
+                PreviewRows.Add(row);
             }
 
-            PreviewDataView = dt.DefaultView;
             AddLog(LogEntryLevel.Info, $"已加载预览：{meta.DisplayName}（{data.Rows.Count} 行，{data.Columns.Count} 列）");
         }
         catch (Exception ex)
@@ -402,6 +395,14 @@ public partial class MainWindowViewModel : ViewModelBase
             _logger.LogError(ex, "加载预览失败：{Path}", absPath);
             AddLog(LogEntryLevel.Error, $"预览加载失败：{ex.Message}");
         }
+    }
+
+    /// <summary>清空预览区域的列和行。</summary>
+    private void ClearPreview()
+    {
+        PreviewRows.Clear();
+        PreviewColumnNames = null;
+        SelectedTableMeta = null;
     }
 
     // ── 表格列表刷新 ──────────────────────────────────────────────────────────

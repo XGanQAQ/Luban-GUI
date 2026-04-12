@@ -252,8 +252,8 @@
                             BorderThickness="1"
                             CornerRadius="4">
                         <DataGrid Name="PreviewGrid"
-                                  ItemsSource="{Binding PreviewDataView}"
-                                  AutoGenerateColumns="True"
+                                  ItemsSource="{Binding PreviewRows}"
+                                  AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   GridLinesVisibility="All"
                                   CanUserReorderColumns="False"
