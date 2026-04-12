@@ -42,7 +42,8 @@
                  Background="Transparent"
                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                  SelectionMode="Multiple"
-                 Padding="4,0">
+                 Padding="4,0"
+                 KeyDown="LogListBox_KeyDown">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="models:LogEntry">
                     <TextBlock Text="{Binding FormattedMessage}"
