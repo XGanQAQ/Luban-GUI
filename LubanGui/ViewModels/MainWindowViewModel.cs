@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -25,6 +26,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ISchemaService? _schemaService;
     private readonly ITablePreviewService? _previewService;
     private readonly FileOpenService? _fileOpenService;
+    private readonly IExportService? _exportService;
+    private readonly ProjectConfigManager? _configManager;
+
+    /// <summary>当前正在进行的导表操作的取消令牌源。</summary>
+    private CancellationTokenSource? _exportCts;
 
     // ── 项目管理 ──────────────────────────────────────────────────────────────
 
@@ -59,6 +65,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (value != null)
         {
             _ = RefreshTablesInternalAsync(value.ProjectPath);
+            _ = LoadExportConfigAsync(value.ProjectPath);
         }
     }
 
@@ -182,22 +189,32 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? NewBeanRequested;
     public event EventHandler? ImportFileRequested;
 
+    /// <summary>由 ExportSettingsWindow 订阅，弹出文件选择对话框选择 Luban 可执行文件。</summary>
+    public event EventHandler? BrowseLubanPathRequested;
+
+    /// <summary>由 ExportSettingsWindow 订阅，弹出文件选择对话框选择 luban.conf 配置文件。</summary>
+    public event EventHandler? BrowseConfFileRequested;
+
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
-    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null) { }
+    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null) { }
 
     public MainWindowViewModel(
         ILogger<MainWindowViewModel> logger,
         IProjectManager? projectManager,
         ISchemaService? schemaService,
         ITablePreviewService? previewService,
-        FileOpenService? fileOpenService)
+        FileOpenService? fileOpenService,
+        IExportService? exportService,
+        ProjectConfigManager? configManager)
     {
         _logger = logger;
         _projectManager = projectManager;
         _schemaService = schemaService;
         _previewService = previewService;
         _fileOpenService = fileOpenService;
+        _exportService = exportService;
+        _configManager = configManager;
 
         if (_projectManager != null)
         {
@@ -462,11 +479,98 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool CanExport() => !IsExporting;
 
     [RelayCommand(CanExecute = nameof(CanExport))]
-    private void Export()
+    private async Task Export()
     {
-        _logger.LogInformation("Export 命令被调用");
+        if (_exportService == null)
+        {
+            AddLog(LogEntryLevel.Error, "导出服务未初始化");
+            return;
+        }
+
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
-        AddLog(LogEntryLevel.Info, "全量导表功能将在后续版本实现");
+
+        var config = BuildConfig();
+
+        // 校验
+        var errors = _exportService.ValidateConfig(config);
+        if (errors.Count > 0)
+        {
+            foreach (var err in errors)
+                AddLog(LogEntryLevel.Error, err);
+            return;
+        }
+
+        IsExporting = true;
+        ExportStatus = ExportStatus.Exporting;
+        AddLog(LogEntryLevel.Info, "开始全量导表…");
+
+        _exportCts = new CancellationTokenSource();
+        var ct = _exportCts.Token;
+
+        // IProgress<string> 会自动将回调切换到创建它的线程（UI 线程）
+        var progress = new Progress<string>(line =>
+        {
+            var (level, msg) = ParseProgressLine(line);
+            AddLog(level, msg);
+        });
+
+        try
+        {
+            var result = await Task.Run(() => _exportService.ExportAsync(config, progress, ct), ct);
+
+            if (result.Success)
+            {
+                ExportStatus = ExportStatus.Success;
+                LastExportStatusText = $"上次导表: 成功（{result.Duration.TotalSeconds:F1}s）";
+                AddLog(LogEntryLevel.Success, $"导表成功！耗时 {result.Duration.TotalSeconds:F1}s");
+
+                // 成功后 3 秒恢复就绪状态
+                _ = Task.Delay(3000).ContinueWith(_ =>
+                {
+                    if (ExportStatus == ExportStatus.Success)
+                        ExportStatus = ExportStatus.Idle;
+                }, TaskScheduler.Current);
+            }
+            else if (result.ExitCode == -1 && result.ErrorMessage == "导表已取消")
+            {
+                ExportStatus = ExportStatus.Cancelled;
+                LastExportStatusText = $"上次导表: 已取消";
+                AddLog(LogEntryLevel.Warning, "导表已取消");
+            }
+            else
+            {
+                ExportStatus = ExportStatus.Failed;
+                LastExportStatusText = $"上次导表: 失败";
+                AddLog(LogEntryLevel.Error, $"导表失败：{result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            ExportStatus = ExportStatus.Failed;
+            LastExportStatusText = "上次导表: 失败";
+            AddLog(LogEntryLevel.Error, $"导表异常：{ex.Message}");
+            _logger.LogError(ex, "导表过程中发生未处理异常");
+        }
+        finally
+        {
+            IsExporting = false;
+            _exportCts?.Dispose();
+            _exportCts = null;
+        }
+    }
+
+    /// <summary>将进度行的前缀解析为日志级别。</summary>
+    private static (LogEntryLevel level, string msg) ParseProgressLine(string line)
+    {
+        if (line.StartsWith("[ERR] ", StringComparison.Ordinal))
+            return (LogEntryLevel.ProcessError, line[6..]);
+        if (line.StartsWith("[ERROR] ", StringComparison.Ordinal))
+            return (LogEntryLevel.Error, line[8..]);
+        if (line.StartsWith("[WARN] ", StringComparison.Ordinal))
+            return (LogEntryLevel.Warning, line[7..]);
+        if (line.StartsWith("[OUT] ", StringComparison.Ordinal))
+            return (LogEntryLevel.Output, line[6..]);
+        return (LogEntryLevel.Output, line);
     }
 
     private bool CanValidateConfig() => !IsExporting;
@@ -474,9 +578,26 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanValidateConfig))]
     private void ValidateConfig()
     {
-        _logger.LogInformation("ValidateConfig 命令被调用");
+        if (_exportService == null)
+        {
+            AddLog(LogEntryLevel.Error, "导出服务未初始化");
+            return;
+        }
+
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
-        AddLog(LogEntryLevel.Info, "配置校验功能将在后续版本实现");
+        var config = BuildConfig();
+        var errors = _exportService.ValidateConfig(config);
+
+        if (errors.Count == 0)
+        {
+            AddLog(LogEntryLevel.Success, "配置校验通过 ✓");
+        }
+        else
+        {
+            AddLog(LogEntryLevel.Warning, $"配置校验发现 {errors.Count} 个问题：");
+            foreach (var err in errors)
+                AddLog(LogEntryLevel.Error, "  " + err);
+        }
     }
 
     private bool CanCancel() => IsExporting;
@@ -484,8 +605,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
-        _logger.LogWarning("Cancel 命令被调用");
-        AddLog(LogEntryLevel.Warning, "取消功能将在后续版本实现");
+        if (_exportCts == null || _exportCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _logger.LogWarning("用户请求取消导表");
+        _exportCts.Cancel();
+        AddLog(LogEntryLevel.Warning, "正在取消导表…");
     }
 
     [RelayCommand]
@@ -657,13 +784,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void BrowseLubanPath()
     {
-        AddLog(LogEntryLevel.Info, "文件浏览对话框将在后续版本实现");
+        BrowseLubanPathRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
     private void BrowseConfFile()
     {
-        AddLog(LogEntryLevel.Info, "文件浏览对话框将在后续版本实现");
+        BrowseConfFileRequested?.Invoke(this, EventArgs.Empty);
     }
 
     // ── 日志操作命令 ──────────────────────────────────────────────────────────
@@ -698,10 +825,85 @@ public partial class MainWindowViewModel : ViewModelBase
         WatchDirs = WatchDirs.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList(),
         ForceLoadTableDatas = ForceLoadTableDatas,
         Verbose = Verbose,
+        ProfileName = ProfileName,
     };
 
+    /// <summary>从 ExportConfig 将值填充回 ViewModel 属性。</summary>
+    public void ApplyExportConfig(ExportConfig config)
+    {
+        ProfileName = config.ProfileName;
+        LubanPath   = config.LubanPath;
+        ConfFile    = config.ConfFile;
+        Target      = config.Target;
+
+        void SyncList(ObservableCollection<StringItemViewModel> col, IEnumerable<string> values)
+        {
+            col.Clear();
+            foreach (var v in values)
+                col.Add(new StringItemViewModel(v, item => col.Remove(item)));
+        }
+
+        SyncList(CodeTargets, config.CodeTargets);
+        SyncList(DataTargets, config.DataTargets);
+        SyncList(Xargs, config.Xargs);
+        SyncList(OutputTables, config.OutputTables);
+        SyncList(IncludeTags, config.IncludeTags);
+        SyncList(ExcludeTags, config.ExcludeTags);
+        SyncList(Variants, config.Variants);
+        SyncList(CustomTemplateDirs, config.CustomTemplateDirs);
+        SyncList(WatchDirs, config.WatchDirs);
+
+        SchemaCollector       = config.SchemaCollector;
+        Pipeline              = config.Pipeline;
+        TimeZone              = config.TimeZone;
+        LogConfig             = config.LogConfig;
+        ValidationFailAsError = config.ValidationFailAsError;
+        ForceLoadTableDatas   = config.ForceLoadTableDatas;
+        Verbose               = config.Verbose;
+    }
+
+    /// <summary>从 projectDir 异步加载 ExportConfig 并应用到 ViewModel。</summary>
+    private async Task LoadExportConfigAsync(string projectDir)
+    {
+        if (_configManager == null) return;
+        try
+        {
+            var config = await _configManager.LoadExportConfigAsync(projectDir);
+            ApplyExportConfig(config);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "加载导出配置失败");
+        }
+    }
+
+    /// <summary>将当前 ViewModel 的导出配置保存到当前项目目录。</summary>
+    public async Task SaveExportConfigAsync()
+    {
+        if (_configManager == null || CurrentProject == null) return;
+        try
+        {
+            await _configManager.SaveExportConfigAsync(CurrentProject.ProjectPath, BuildConfig());
+            AddLog(LogEntryLevel.Success, "导出配置已保存");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存导出配置失败");
+            AddLog(LogEntryLevel.Error, $"保存配置失败：{ex.Message}");
+        }
+    }
     public void AddLog(LogEntryLevel level, string message)
     {
+        const int MaxLogEntries = 10_000;
+        const int TrimCount = 500;
+
+        // 超过上限时移除最旧的若干条
+        if (LogEntries.Count >= MaxLogEntries)
+        {
+            for (int i = 0; i < TrimCount && LogEntries.Count > 0; i++)
+                LogEntries.RemoveAt(0);
+        }
+
         LogEntries.Add(new LogEntry
         {
             Level = level,

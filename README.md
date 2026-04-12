@@ -70,7 +70,8 @@
 
 ### 前置要求
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download) 或更高版本
+- IDE：Visual Studio 2022 / JetBrains Rider（推荐安装 Avalonia 扩展以获得 AXAML 设计器支持）
 
 ### 构建与运行
 
@@ -84,6 +85,9 @@ dotnet run --project .\LubanGui\LubanGui.csproj
 
 # 或完整构建解决方案
 dotnet build .\LubanGui.slnx
+
+# 仅构建 Luban 工具链
+dotnet build .\lubanSrc\Luban.sln
 ```
 
 ### 发布
@@ -104,16 +108,70 @@ Luban-GUI/
 
 > GUI 不直接引用 Luban 项目。构建时会先编译 `lubanSrc/Luban/Luban.csproj`，再将 CLI 产物复制到 `LubanGui/bin/.../luban/` 目录，作为子进程调用。
 
+### 项目工作区结构
+
+每个 Luban-GUI 项目对应磁盘上如下结构（由 GUI 自动初始化和维护）：
+
+```
+<WorkspaceRoot>/
+└── <ProjectName>/
+    ├── projectConfig.json        # GUI 专属导出配置
+    ├── luban.conf                # Luban 全局配置（由 GUI 自动维护）
+    ├── Defines/                  # 自定义类型定义
+    └── Datas/
+        ├── __tables__.xlsx       # 表格元数据（由 GUI 维护）
+        ├── __beans__.xlsx        # Bean 元数据（由 GUI 维护）
+        ├── __enums__.xlsx        # 枚举元数据（由 GUI 维护）
+        └── *.xlsx                # 用户数据表
+```
+
+## 🏛️ 架构
+
+LubanGui 采用**五层架构**，层间单向向下依赖：
+
+```
+┌──────────────────────────────────────────────────────┐
+│               表现层 (Avalonia UI)                   │
+│  主窗口 · 项目切换 · 快捷操作 · 导出配置 · 日志窗口   │
+└────────────────────────┬─────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────┐
+│              业务逻辑层 (Service)                     │
+│  ProjectManager · SchemaService                      │
+│  ExportService · TablePreviewService                 │
+└────────────────────────┬─────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────┐
+│                工具层 (Executor / IO)                 │
+│  LubanExecutor · LubanCommandBuilder                 │
+│  ExcelWriter · FileOpenService                       │
+└────────────────────────┬─────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────┐
+│              基础设施层 (Infrastructure)              │
+│  AppConfigManager · ProjectConfigManager · Logger    │
+└────────────────────────┬─────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────┐
+│           Luban 源适配层 (LubanAdapter)               │
+│  LubanSchemaReader · LubanConfAdapter                │
+│  LubanTypeMapper                                     │
+└──────────────────────────────────────────────────────┘
+```
+
+> **Luban 源适配层**是 GUI 与 `lubanSrc\` 之间的唯一接触点，上方各层不直接引用 Luban 源码中的类型。
+
 ## 🛠️ 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| UI 框架 | [Avalonia](https://avaloniaui.net/) 11.x |
-| 语言 | C# / .NET 8 |
-| MVVM | CommunityToolkit.Mvvm |
-| 配置 | System.Text.Json |
-| 日志 | Serilog |
-| 依赖注入 | Microsoft.Extensions.DependencyInjection |
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| [Avalonia](https://avaloniaui.net/) | 11.x | UI 框架（开源跨平台 XAML） |
+| C# / .NET | 8.0+ | 编程语言与运行时 |
+| CommunityToolkit.Mvvm | 8.x | MVVM 工具包（源生成器减少样板代码） |
+| ClosedXML | 0.100+ | xlsx 读写（无需安装 Excel） |
+| System.Text.Json | 内置 | 配置读写（零依赖、AOT 友好） |
+| Serilog | 3.x | 结构化日志（多 Sink、异步写入） |
+| Microsoft.Extensions.DependencyInjection | 8.0 | 依赖注入容器 |
 
 ## 🤝 贡献
 
@@ -123,4 +181,5 @@ Luban-GUI/
 
 - [Luban 仓库](https://github.com/focus-creative-games/luban)
 - [Avalonia UI](https://avaloniaui.net/)
-- [设计文档](./docs/lubanGuiDocs/engineering/03-前端界面设计.md)
+- [前端界面设计](./docs/lubanGuiDocs/engineering/03-前端界面设计.md)
+- [技术方案](./docs/lubanGuiDocs/engineering/01-技术方案.md)

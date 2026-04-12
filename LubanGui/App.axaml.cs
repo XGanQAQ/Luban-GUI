@@ -8,6 +8,7 @@ using LubanGui.Infrastructure;
 using LubanGui.LubanAdapter;
 using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Services;
+using LubanGui.Services.Luban;
 using LubanGui.ViewModels;
 using LubanGui.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,6 +57,8 @@ public partial class App : Application
         services.AddSingleton<IProjectManager, ProjectManager>();
         services.AddSingleton<ISchemaService, SchemaService>();
         services.AddSingleton<ITablePreviewService, TablePreviewService>();
+        services.AddSingleton<ILubanExecutor, LubanExecutor>();
+        services.AddSingleton<IExportService, ExportService>();
 
         // Luban 源适配层
         services.AddSingleton<ILubanSchemaReader, LubanSchemaReader>();
@@ -68,7 +71,9 @@ public partial class App : Application
             sp.GetRequiredService<IProjectManager>(),
             sp.GetRequiredService<ISchemaService>(),
             sp.GetRequiredService<ITablePreviewService>(),
-            sp.GetRequiredService<FileOpenService>()));
+            sp.GetRequiredService<FileOpenService>(),
+            sp.GetRequiredService<IExportService>(),
+            sp.GetRequiredService<ProjectConfigManager>()));
     }
 
     public override void OnFrameworkInitializationCompleted()
