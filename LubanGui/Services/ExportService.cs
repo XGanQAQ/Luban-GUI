@@ -58,18 +58,45 @@ public class ExportService : IExportService
             return new ExportResult { Success = false, ExitCode = -1, ErrorMessage = errMsg };
         }
 
-        // 2. 解析路径
+        // 2. 导表前修复 __tables__.xlsx 中的旧格式数据并清理重复记录
+        var projectPath = _projectManager.CurrentProject?.ProjectPath;
+        if (!string.IsNullOrEmpty(projectPath))
+        {
+            var tablesXlsx = Path.Combine(projectPath, "Datas", "__tables__.xlsx");
+            try
+            {
+                int migrated = await Task.Run(() => ExcelWriter.MigrateToTbPrefixTableNames(tablesXlsx));
+                if (migrated > 0)
+                {
+                    _logger.LogWarning("导表前已将 __tables__.xlsx 中 {Count} 条记录的 full_name 修正为 Tb 前缀格式。", migrated);
+                    progress.Report($"[WARN] 已自动修正 {migrated} 条表格命名（full_name 添加 Tb 前缀）");
+                }
+
+                int removed = await Task.Run(() => ExcelWriter.RemoveDuplicateTableEntries(tablesXlsx));
+                if (removed > 0)
+                {
+                    _logger.LogWarning("导表前在 __tables__.xlsx 中发现并清除了 {Count} 条重复记录。", removed);
+                    progress.Report($"[WARN] 已自动清除 {removed} 条重复表格记录");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理 __tables__.xlsx 重复记录时发生异常，跳过清理继续导表。");
+            }
+        }
+
+        // 3. 解析路径
         var lubanDllPath = ResolveLubanDllPath();
         var confFilePath = GetConfFilePath();
 
-        // 3. 构建 CLI 参数
+        // 4. 构建 CLI 参数
         var args = LubanCommandBuilder.BuildArgs(config, confFilePath);
         _logger.LogInformation("开始导表，Luban 路径：{Path}", lubanDllPath);
 
         var sw = Stopwatch.StartNew();
         try
         {
-            // 4. 执行 Luban CLI
+            // 5. 执行 Luban CLI
             var exitCode = await _executor.RunAsync(lubanDllPath, args, progress, ct);
             sw.Stop();
 

@@ -83,16 +83,20 @@ public class SchemaService : ISchemaService
         var relativePath = fullName.Replace('.', '/') + ".xlsx";
         var xlsxAbsPath = Path.Combine(projectPath, "Datas", relativePath);
 
-        _logger.LogInformation("创建表格 {FullName} → {Path}", fullName, xlsxAbsPath);
+        _logger.LogInformation("创建表格 {ValueType} → {Path}", fullName, xlsxAbsPath);
 
         // 1. 创建数据 xlsx
         ExcelWriter.CreateDataXlsx(xlsxAbsPath, fields);
 
         // 2. 构建 TableMeta
+        // Luban 规范：当 read_schema_from_file=true 时，full_name（table 容器类型）
+        // 与 value_type（记录 bean 类型）必须不同，否则 DefAssembly.AddType 会报 duplicate。
+        // 约定：full_name = "Tb" + 首字母大写(shortName)，value_type = 用户输入的原始名称。
+        var tableFullName = BuildTableFullName(fullName);
         var table = new TableMeta
         {
-            FullName = fullName,
-            ValueType = fullName,           // read_schema_from_file=true 时 value_type 与 full_name 相同
+            FullName = tableFullName,
+            ValueType = fullName,
             Index = indexField,
             Mode = string.Empty,
             Group = string.Empty,
@@ -103,9 +107,23 @@ public class SchemaService : ISchemaService
             Tags = string.Empty,
         };
 
-        // 3. 追加到 __tables__.xlsx
+        // 3. 追加到 __tables__.xlsx（写入前先清理已有重复条目）
         var tablesXlsx = Path.Combine(projectPath, "Datas", "__tables__.xlsx");
-        await Task.Run(() => ExcelWriter.AppendTableEntry(tablesXlsx, table));
+        await Task.Run(() =>
+        {
+            int removed = ExcelWriter.RemoveDuplicateTableEntries(tablesXlsx);
+            if (removed > 0)
+                _logger.LogWarning("__tables__.xlsx 中发现并清除了 {Count} 条重复记录。", removed);
+
+            try
+            {
+                ExcelWriter.AppendTableEntry(tablesXlsx, table);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "跳过写入：{FullName}", table.FullName);
+            }
+        });
 
         return table;
     }
@@ -138,7 +156,7 @@ public class SchemaService : ISchemaService
 
         var table = new TableMeta
         {
-            FullName = fullName,
+            FullName = BuildTableFullName(fullName),
             ValueType = fullName,
             Index = indexField,
             Mode = string.Empty,
@@ -151,7 +169,21 @@ public class SchemaService : ISchemaService
         };
 
         var tablesXlsx = Path.Combine(datasDir, "__tables__.xlsx");
-        await Task.Run(() => ExcelWriter.AppendTableEntry(tablesXlsx, table));
+        await Task.Run(() =>
+        {
+            int removed = ExcelWriter.RemoveDuplicateTableEntries(tablesXlsx);
+            if (removed > 0)
+                _logger.LogWarning("__tables__.xlsx 中发现并清除了 {Count} 条重复记录。", removed);
+
+            try
+            {
+                ExcelWriter.AppendTableEntry(tablesXlsx, table);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "跳过写入：{FullName}", table.FullName);
+            }
+        });
 
         _logger.LogInformation("导入表格 {FullName} → {RelPath}", fullName, relativePath);
         return table;
@@ -201,4 +233,23 @@ public class SchemaService : ISchemaService
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 按照 Luban 约定将用户输入的记录类型名转为 table 容器类型名（加 Tb 前缀）。
+    /// 例：itemConfig → TbItemConfig，cfg.itemConfig → cfg.TbItemConfig
+    /// </summary>
+    private static string BuildTableFullName(string recordFullName)
+    {
+        var lastDot = recordFullName.LastIndexOf('.');
+        if (lastDot >= 0)
+        {
+            var ns = recordFullName[..lastDot];
+            var name = recordFullName[(lastDot + 1)..];
+            var tbName = "Tb" + char.ToUpper(name[0]) + name[1..];
+            return ns + "." + tbName;
+        }
+        else
+        {
+            return "Tb" + char.ToUpper(recordFullName[0]) + recordFullName[1..];
+        }
+    }
 }

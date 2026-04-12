@@ -73,6 +73,7 @@ public static class ExcelWriter
 
     /// <summary>
     /// 向已有的 __tables__.xlsx 中追加一条表格记录。
+    /// 若 full_name 已存在则抛出 <see cref="InvalidOperationException"/>。
     /// </summary>
     public static void AppendTableEntry(string path, TableMeta table)
     {
@@ -83,6 +84,22 @@ public static class ExcelWriter
 
         using var workbook = new XLWorkbook(path);
         var sheet = workbook.Worksheet(1);
+
+        // 重复检测：扫描所有已有数据行的 B 列（full_name）
+        int row = 1;
+        while (true)
+        {
+            var a = sheet.Cell(row, 1).GetString().Trim();
+            var b = sheet.Cell(row, 2).GetString().Trim();
+            if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b))
+                break;
+            if (!a.StartsWith("##") || string.IsNullOrEmpty(a))
+            {
+                if (b.Equals(table.FullName, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"表格 '{table.FullName}' 已存在于 __tables__.xlsx 中，不允许重复写入。");
+            }
+            row++;
+        }
 
         int nextRow = FindNextDataRow(sheet);
 
@@ -241,6 +258,130 @@ public static class ExcelWriter
 
         sheet.Columns().AdjustToContents();
         workbook.SaveAs(path);
+    }
+
+    /// <summary>
+    /// 扫描 __tables__.xlsx，删除 full_name 重复的多余数据行，保留首次出现的记录。
+    /// 返回被删除的重复行数。
+    /// </summary>
+    public static int RemoveDuplicateTableEntries(string path)
+    {
+        if (!File.Exists(path))
+            return 0;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rowsToDelete = new List<int>();
+
+        int row = 1;
+        int lastUsedRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        while (row <= lastUsedRow)
+        {
+            var a = sheet.Cell(row, 1).GetString().Trim();
+            var b = sheet.Cell(row, 2).GetString().Trim();
+
+            // 跳过 ## 元数据行
+            if (a.StartsWith("##"))
+            {
+                row++;
+                continue;
+            }
+
+            // 空行跳过
+            if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b))
+            {
+                row++;
+                continue;
+            }
+
+            if (!seen.Add(b))
+            {
+                rowsToDelete.Add(row);
+            }
+
+            row++;
+        }
+
+        // 从后往前删除，避免行号偏移
+        for (int i = rowsToDelete.Count - 1; i >= 0; i--)
+        {
+            sheet.Row(rowsToDelete[i]).Delete();
+        }
+
+        if (rowsToDelete.Count > 0)
+            workbook.Save();
+
+        return rowsToDelete.Count;
+    }
+
+    /// <summary>
+    /// 修复 __tables__.xlsx 中旧格式的错误记录：
+    /// 当 full_name == value_type 且 read_schema_from_file=true 时，
+    /// Luban 会因 DefBean 和 DefTable 共享相同 FullName 而报 duplicate 错误。
+    /// 本方法将 full_name 重命名为 "Tb" + 首字母大写(shortName) 以符合 Luban 约定。
+    /// 返回修改的行数。
+    /// </summary>
+    public static int MigrateToTbPrefixTableNames(string path)
+    {
+        if (!File.Exists(path))
+            return 0;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+
+        int count = 0;
+        int row = 1;
+        int lastUsedRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        while (row <= lastUsedRow)
+        {
+            var a = sheet.Cell(row, 1).GetString().Trim();
+            var b = sheet.Cell(row, 2).GetString().Trim();  // full_name
+            var c = sheet.Cell(row, 3).GetString().Trim();  // value_type
+            var d = sheet.Cell(row, 4).GetString().Trim();  // read_schema_from_file
+
+            if (a.StartsWith("##"))
+            {
+                row++;
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b))
+            {
+                row++;
+                continue;
+            }
+
+            // 仅修复：full_name == value_type && read_schema_from_file=true
+            if (d.Equals("true", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(b)
+                && b.Equals(c, StringComparison.OrdinalIgnoreCase))
+            {
+                var lastDot = b.LastIndexOf('.');
+                string tbFullName;
+                if (lastDot >= 0)
+                {
+                    var ns = b[..lastDot];
+                    var name = b[(lastDot + 1)..];
+                    tbFullName = ns + ".Tb" + char.ToUpper(name[0]) + name[1..];
+                }
+                else
+                {
+                    tbFullName = "Tb" + char.ToUpper(b[0]) + b[1..];
+                }
+
+                sheet.Cell(row, 2).Value = tbFullName;
+                count++;
+            }
+
+            row++;
+        }
+
+        if (count > 0)
+            workbook.Save();
+
+        return count;
     }
 
     private static void EnsureDirectory(string path)
