@@ -46,7 +46,8 @@
   <!-- ===== Luban 构建集成 ===== -->
   <PropertyGroup>
     <LubanProjectPath>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\Luban.csproj</LubanProjectPath>
-    <LubanOutputDir>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\bin\$(Configuration)\net8.0\</LubanOutputDir>
+    <LubanRuntimeSubDir Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)\</LubanRuntimeSubDir>
+    <LubanOutputDir>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\bin\$(Configuration)\net8.0\$(LubanRuntimeSubDir)</LubanOutputDir>
     <LubanDeployDir>$(OutputPath)luban\</LubanDeployDir>
   </PropertyGroup>
 
@@ -54,8 +55,8 @@
   <Target Name="BuildLuban" BeforeTargets="PreBuildEvent">
     <Message Text="正在构建 Luban..." Importance="high" />
     <MSBuild Projects="$(LubanProjectPath)"
-             Properties="Configuration=$(Configuration)"
-             Targets="Build" />
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained)"
+             Targets="Restore;Build" />
   </Target>
 
   <!-- 构建完成后，将 Luban 输出复制到 GUI 输出目录的 luban/ 子文件夹（含子目录如 Templates/） -->
@@ -63,9 +64,9 @@
     <ItemGroup>
       <LubanOutputFiles Include="$(LubanOutputDir)**\*" />
     </ItemGroup>
-    <MakeDir Directories="$(MSBuildProjectDirectory)\bin\$(Configuration)\net8.0\luban" />
+    <MakeDir Directories="$(LubanDeployDir)" />
     <Copy SourceFiles="@(LubanOutputFiles)"
-          DestinationFiles="@(LubanOutputFiles->'$(MSBuildProjectDirectory)\bin\$(Configuration)\net8.0\luban\%(RecursiveDir)%(Filename)%(Extension)')"
+          DestinationFiles="@(LubanOutputFiles->'$(LubanDeployDir)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
     <Message Text="Luban 已复制到输出目录 luban/" Importance="high" />
   </Target>

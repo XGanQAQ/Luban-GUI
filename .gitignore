@@ -20,6 +20,9 @@ logs/
 # User config
 **/AppData/
 
+# Generated Luban runtime copied from lubanSrc during build
+LubanGui/luban/
+
 # OS
 .DS_Store
 Thumbs.db
