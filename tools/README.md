@@ -37,10 +37,12 @@ python tools/crawl_luban_docs.py `
 - `--scope-prefix`：限制路径前缀（默认 `/docs`）
 - `--max-pages`：最多抓取页数
 - `--overwrite`：覆盖已存在文件
+- `--index-filenames`：使用旧命名方式（目录页写成 `index.md`）；默认关闭，即输出 `slug.md`
 
 ## 实现说明
 
 - 使用 `https://r.jina.ai/<原始URL>` 把网页转换为 Markdown。
 - 自动提取 Markdown 链接并递归抓取。
 - 仅抓取指定域名和路径前缀，避免跑偏到站外。
-- 输出路径会根据 URL 自动映射为本地 `.md` 文件。
+- 默认输出 `slug.md`（如 `manual/traits.md`），更利于文件名检索。
+- 兼容模式可用 `--index-filenames`，输出 `index.md`（如 `manual/traits/index.md`）。

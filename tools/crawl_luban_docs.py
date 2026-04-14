@@ -120,6 +120,7 @@ class CrawlConfig:
         delay_sec: float,
         overwrite: bool,
         timeout_sec: int,
+        index_filenames: bool,
     ) -> None:
         self.out_dir = out_dir
         self.domain = domain.lower()
@@ -128,6 +129,7 @@ class CrawlConfig:
         self.delay_sec = delay_sec
         self.overwrite = overwrite
         self.timeout_sec = timeout_sec
+        self.index_filenames = index_filenames
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -185,6 +187,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--overwrite",
         action="store_true",
         help="允许覆盖已存在文件",
+    )
+    parser.add_argument(
+        "--index-filenames",
+        action="store_true",
+        help="使用旧命名方式，将目录页保存为 index.md（默认关闭）",
     )
     return parser
 
@@ -349,7 +356,7 @@ def url_to_output_path(url: str, cfg: CrawlConfig) -> pathlib.Path:
     parsed = urllib.parse.urlparse(url)
     rel = parsed.path
 
-    # 去掉 scope 前缀后转路径，例如 /docs/basic -> basic/index.md
+    # 去掉 scope 前缀后转路径。
     if rel.startswith(cfg.scope_prefix):
         rel = rel[len(cfg.scope_prefix) :]
 
@@ -363,7 +370,10 @@ def url_to_output_path(url: str, cfg: CrawlConfig) -> pathlib.Path:
         elif p.suffix:
             rel_path = p.with_suffix(".md")
         else:
-            rel_path = p / "index.md"
+            if cfg.index_filenames:
+                rel_path = p / "index.md"
+            else:
+                rel_path = p.with_suffix(".md")
 
     return cfg.out_dir / rel_path
 
@@ -459,6 +469,7 @@ def main() -> int:
         delay_sec=args.delay_sec,
         overwrite=args.overwrite,
         timeout_sec=args.timeout_sec,
+        index_filenames=args.index_filenames,
     )
 
     print("=== 配置 ===")
@@ -467,6 +478,7 @@ def main() -> int:
     print(f"out_dir     : {cfg.out_dir}")
     print(f"max_pages   : {cfg.max_pages}")
     print(f"seeds       : {len(seed_urls)}")
+    print(f"index_files : {cfg.index_filenames}")
 
     count = crawl(seed_urls, cfg)
     print(f"完成，共保存 {count} 个页面。")
