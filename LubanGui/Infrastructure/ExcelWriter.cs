@@ -323,6 +323,178 @@ public static class ExcelWriter
     /// 本方法将 full_name 重命名为 "Tb" + 首字母大写(shortName) 以符合 Luban 约定。
     /// 返回修改的行数。
     /// </summary>
+    /// <summary>检查 __enums__.xlsx 中是否已存在相同 full_name 的枚举。</summary>
+    public static bool EnumFullNameExists(string path, string fullName)
+    {
+        if (!File.Exists(path)) return false;
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+            var b = sheet.Cell(r, 2).GetString().Trim();
+            if (!string.IsNullOrEmpty(b) && b.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>检查 __beans__.xlsx 中是否已存在相同 full_name 的 Bean。</summary>
+    public static bool BeanFullNameExists(string path, string fullName)
+    {
+        if (!File.Exists(path)) return false;
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+            var b = sheet.Cell(r, 2).GetString().Trim();
+            if (!string.IsNullOrEmpty(b) && b.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 向 __enums__.xlsx 追加一条枚举记录（多行模式：第一行写顶层字段，每个枚举项占一行）。
+    /// </summary>
+    /// <exception cref="FileNotFoundException">文件不存在。</exception>
+    /// <exception cref="InvalidOperationException">fullName 已存在。</exception>
+    public static void AppendEnumEntry(
+        string path,
+        string fullName,
+        bool isFlags,
+        bool isUnique,
+        string group,
+        string comment,
+        IReadOnlyList<EnumItemDefinition> items)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"__enums__.xlsx 不存在：{path}");
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        // 重复检查
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+            var b = sheet.Cell(r, 2).GetString().Trim();
+            if (!string.IsNullOrEmpty(b) && b.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"枚举 '{fullName}' 已存在于 __enums__.xlsx 中。");
+        }
+
+        // subStartCol = s_enumTopFields.Length(6) + 2 = 8 → 列 H
+        int subStartCol = s_enumTopFields.Length + 2;
+        int numRows = Math.Max(1, items.Count);
+
+        for (int i = 0; i < numRows; i++)
+        {
+            int r = lastRow + 1 + i;
+
+            // 顶层字段只在第一行写
+            if (i == 0)
+            {
+                sheet.Cell(r, 2).Value = fullName;
+                sheet.Cell(r, 3).Value = isFlags ? "true" : "false";
+                sheet.Cell(r, 4).Value = isUnique ? "true" : "false";
+                sheet.Cell(r, 5).Value = group;
+                sheet.Cell(r, 6).Value = comment;
+                // col 7 (tags) 留空
+            }
+
+            // 枚举项子字段 (H~L)
+            if (i < items.Count)
+            {
+                var item = items[i];
+                sheet.Cell(r, subStartCol).Value     = item.Name;
+                sheet.Cell(r, subStartCol + 1).Value = item.Alias;
+                sheet.Cell(r, subStartCol + 2).Value = item.Value;
+                sheet.Cell(r, subStartCol + 3).Value = item.Comment;
+                // col subStartCol+4 (tags) 留空
+            }
+        }
+
+        workbook.Save();
+    }
+
+    /// <summary>
+    /// 向 __beans__.xlsx 追加一条 Bean 记录（多行模式：第一行写顶层字段，每个字段占一行）。
+    /// </summary>
+    /// <exception cref="FileNotFoundException">文件不存在。</exception>
+    /// <exception cref="InvalidOperationException">fullName 已存在。</exception>
+    public static void AppendBeanEntry(
+        string path,
+        string fullName,
+        string parent,
+        string sep,
+        string group,
+        string comment,
+        IReadOnlyList<FieldDefinition> fields)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"__beans__.xlsx 不存在：{path}");
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        // 重复检查
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+            var b = sheet.Cell(r, 2).GetString().Trim();
+            if (!string.IsNullOrEmpty(b) && b.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Bean '{fullName}' 已存在于 __beans__.xlsx 中。");
+        }
+
+        // 列布局（参照 s_beanTopFields 顺序）:
+        // B=full_name C=parent D=valueType E=sep F=alias G=comment H=group I=tags
+        // subStartCol = s_beanTopFields.Length(8) + 2 = 10 → 列 J
+        // J=name K=alias L=type M=group N=comment O=tags P=variants
+        int subStartCol = s_beanTopFields.Length + 2;
+        int numRows = Math.Max(1, fields.Count);
+
+        for (int i = 0; i < numRows; i++)
+        {
+            int r = lastRow + 1 + i;
+
+            // 顶层字段只在第一行写
+            if (i == 0)
+            {
+                sheet.Cell(r, 2).Value = fullName;  // full_name
+                sheet.Cell(r, 3).Value = parent;    // parent
+                // col 4 (valueType) 留空
+                sheet.Cell(r, 5).Value = sep;       // sep
+                // col 6 (alias) 留空
+                sheet.Cell(r, 7).Value = comment;   // comment
+                sheet.Cell(r, 8).Value = group;     // group
+                // col 9 (tags) 留空
+            }
+
+            // 字段子字段 (J~P)
+            if (i < fields.Count)
+            {
+                var f = fields[i];
+                sheet.Cell(r, subStartCol).Value     = f.Name;    // name
+                // col subStartCol+1 (alias) 留空
+                sheet.Cell(r, subStartCol + 2).Value = f.Type;    // type
+                // col subStartCol+3 (group) 留空
+                sheet.Cell(r, subStartCol + 4).Value = f.Comment; // comment
+                // col subStartCol+5 (tags), subStartCol+6 (variants) 留空
+            }
+        }
+
+        workbook.Save();
+    }
+
     public static int MigrateToTbPrefixTableNames(string path)
     {
         if (!File.Exists(path))

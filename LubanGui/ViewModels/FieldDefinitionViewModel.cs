@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LubanGui.Models;
@@ -18,6 +19,12 @@ public partial class FieldDefinitionViewModel : ObservableObject
 
     [ObservableProperty]
     private string _comment = string.Empty;
+
+    /// <summary>
+    /// 可选的类型候选列表，供前端 AutoCompleteBox 提供补全建议。
+    /// 由父级 ViewModel 在创建时注入（若未注入则为空列表，仍可手动输入）。
+    /// </summary>
+    public IReadOnlyList<string> AvailableTypes { get; set; } = Array.Empty<string>();
 
     public IRelayCommand RemoveCommand { get; }
 

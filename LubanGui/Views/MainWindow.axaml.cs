@@ -283,7 +283,12 @@ public partial class MainWindow : Window
 
         try
         {
-            await schemaService.CreateEnumAsync(vm.CurrentProject.ProjectPath, result.FullName, result.Items);
+            await schemaService.CreateEnumAsync(
+                vm.CurrentProject.ProjectPath,
+                result.FullName,
+                result.IsFlags,
+                result.IsUnique,
+                result.Items);
             vm.AddLog(LogEntryLevel.Success, $"已创建枚举：{result.FullName}");
         }
         catch (Exception ex)
@@ -306,6 +311,15 @@ public partial class MainWindow : Window
         }
 
         var dialogVm = new NewBeanDialogViewModel();
+
+        // 注入当前已知的自定义类型，供字段类型自动补全使用
+        try
+        {
+            var availableTypes = await schemaService.GetAvailableTypeNamesAsync(vm.CurrentProject.ProjectPath);
+            dialogVm.SetAvailableTypes(availableTypes);
+        }
+        catch { /* 获取失败时不影响对话框打开 */ }
+
         var dialog = new NewBeanDialog(dialogVm);
         var result = await dialog.ShowDialog<NewBeanResult?>(this);
 

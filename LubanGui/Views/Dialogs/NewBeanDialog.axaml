@@ -16,18 +16,26 @@
         <vm:NewBeanDialogViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
 
         <!-- Bean 全名 -->
-        <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,8">
+        <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Text="Bean 全名:" VerticalAlignment="Center" />
             <TextBox Grid.Column="1"
                      Text="{Binding BeanFullName}"
                      Watermark="如 cfg.HeroRecord" />
         </Grid>
 
+        <!-- 错误提示 -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="OrangeRed"
+                   FontSize="12"
+                   Margin="0,0,0,6"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- 字段列表 -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="1"
                 CornerRadius="4"
@@ -62,7 +70,12 @@
                             <DataTemplate x:DataType="vm:FieldDefinitionViewModel">
                                 <Grid ColumnDefinitions="*,120,*,32" Margin="0,2">
                                     <TextBox Grid.Column="0" Text="{Binding Name}" Watermark="字段名" Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="1" Text="{Binding Type}" Watermark="类型" Margin="0,0,4,0" />
+                                    <AutoCompleteBox Grid.Column="1"
+                                                    Text="{Binding Type}"
+                                                    ItemsSource="{Binding AvailableTypes}"
+                                                    FilterMode="Contains"
+                                                    Watermark="int, string, cfg.MyEnum…"
+                                                    Margin="0,0,4,0" />
                                     <TextBox Grid.Column="2" Text="{Binding Comment}" Watermark="注释" Margin="0,0,4,0" />
                                     <Button Grid.Column="3"
                                             Content="✕"
@@ -79,7 +92,7 @@
         </Border>
 
         <!-- 按钮行 -->
-        <StackPanel Grid.Row="2"
+        <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8">

@@ -30,15 +30,27 @@ public interface ISchemaService
         string fullName,
         string indexField);
 
-    /// <summary>创建新枚举：生成独立的枚举 xlsx 文件（MVP 阶段不修改 __enums__.xlsx）。</summary>
+    /// <summary>
+    /// 创建新枚举，并将条目写入 __enums__.xlsx。
+    /// </summary>
+    /// <param name="isFlags">是否为标志位枚举（可多值按位组合）。</param>
+    /// <param name="isUnique">枚举项整数值是否唯一，建议为 true。</param>
     Task CreateEnumAsync(
         string projectPath,
         string fullName,
+        bool isFlags,
+        bool isUnique,
         IReadOnlyList<EnumItemDefinition> items);
 
-    /// <summary>创建新 Bean：生成独立的 Bean xlsx 文件（MVP 阶段不修改 __beans__.xlsx）。</summary>
+    /// <summary>创建新 Bean，并将条目写入 __beans__.xlsx。</summary>
     Task CreateBeanAsync(
         string projectPath,
         string fullName,
         IReadOnlyList<FieldDefinition> fields);
+
+    /// <summary>
+    /// 从项目 Schema 中读取所有已注册的枚举和 Bean 的 full_name，
+    /// 供字段类型输入时提供自动补全候选列表。
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAvailableTypeNamesAsync(string projectPath);
 }

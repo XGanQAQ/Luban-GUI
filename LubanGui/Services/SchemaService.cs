@@ -190,47 +190,138 @@ public class SchemaService : ISchemaService
     }
 
     /// <inheritdoc/>
-    public Task CreateEnumAsync(
+    public async Task CreateEnumAsync(
         string projectPath,
         string fullName,
+        bool isFlags,
+        bool isUnique,
         IReadOnlyList<EnumItemDefinition> items)
     {
-        // MVP：创建独立的枚举记录 xlsx（用于人工参考，未集成到 __enums__.xlsx）
-        _logger.LogInformation("创建枚举 {FullName}（{Count} 个值）", fullName, items.Count);
+        ValidateFullName(fullName, "枚举");
 
-        var fields = new List<FieldDefinition>
+        var enumsXlsx = Path.Combine(projectPath, "Datas", "__enums__.xlsx");
+        _logger.LogInformation("开始创建枚举 {FullName}（flags={IsFlags}, unique={IsUnique}, {Count} 项）",
+            fullName, isFlags, isUnique, items.Count);
+
+        await Task.Run(() =>
         {
-            new() { Name = "name",    Type = "string", Comment = "枚举名" },
-            new() { Name = "alias",   Type = "string", Comment = "别名" },
-            new() { Name = "value",   Type = "string", Comment = "枚举值" },
-            new() { Name = "comment", Type = "string", Comment = "说明" },
-        };
+            if (!File.Exists(enumsXlsx))
+            {
+                _logger.LogInformation("__enums__.xlsx 不存在，自动创建");
+                ExcelWriter.CreateEnumsMetaXlsx(enumsXlsx);
+            }
 
-        var relativePath = fullName.Replace('.', '/') + "_enum.xlsx";
-        var xlsxPath = Path.Combine(projectPath, "Datas", relativePath);
+            try
+            {
+                ExcelWriter.AppendEnumEntry(enumsXlsx, fullName, isFlags, isUnique,
+                    group: string.Empty, comment: string.Empty, items);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("枚举已存在，跳过写入：{FullName}", fullName);
+                throw new InvalidOperationException($"枚举 '{fullName}' 已存在，请使用不同的名称。", ex);
+            }
+        });
 
-        ExcelWriter.CreateDataXlsx(xlsxPath, fields);
-
-        // TODO（未来）：集成到 __enums__.xlsx
-        return Task.CompletedTask;
+        _logger.LogInformation("枚举 {FullName} 已成功创建", fullName);
     }
 
     /// <inheritdoc/>
-    public Task CreateBeanAsync(
+    public async Task CreateBeanAsync(
         string projectPath,
         string fullName,
         IReadOnlyList<FieldDefinition> fields)
     {
-        // MVP：创建独立的 Bean 记录 xlsx（用于人工参考，未集成到 __beans__.xlsx）
-        _logger.LogInformation("创建 Bean {FullName}（{Count} 个字段）", fullName, fields.Count);
+        ValidateFullName(fullName, "Bean");
 
-        var relativePath = fullName.Replace('.', '/') + "_bean.xlsx";
-        var xlsxPath = Path.Combine(projectPath, "Datas", relativePath);
+        if (fields.Count == 0)
+            throw new ArgumentException("Bean 至少需要一个字段。", nameof(fields));
 
-        ExcelWriter.CreateDataXlsx(xlsxPath, fields);
+        var beansXlsx = Path.Combine(projectPath, "Datas", "__beans__.xlsx");
+        _logger.LogInformation("开始创建 Bean {FullName}（{Count} 个字段）", fullName, fields.Count);
 
-        // TODO（未来）：集成到 __beans__.xlsx
-        return Task.CompletedTask;
+        await Task.Run(() =>
+        {
+            if (!File.Exists(beansXlsx))
+            {
+                _logger.LogInformation("__beans__.xlsx 不存在，自动创建");
+                ExcelWriter.CreateBeansMetaXlsx(beansXlsx);
+            }
+
+            try
+            {
+                ExcelWriter.AppendBeanEntry(beansXlsx, fullName,
+                    parent: string.Empty, sep: string.Empty,
+                    group: string.Empty, comment: string.Empty, fields);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Bean 已存在，跳过写入：{FullName}", fullName);
+                throw new InvalidOperationException($"Bean '{fullName}' 已存在，请使用不同的名称。", ex);
+            }
+        });
+
+        _logger.LogInformation("Bean {FullName} 已成功创建", fullName);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> GetAvailableTypeNamesAsync(string projectPath)
+    {
+        var confPath = Path.Combine(projectPath, "luban.conf");
+        if (!File.Exists(confPath))
+            return Array.Empty<string>();
+
+        var result = new List<string>();
+
+        try
+        {
+            var enums = await _schemaReader.ReadEnumsAsync(confPath);
+            foreach (var e in enums) result.Add(e.FullName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "读取枚举类型列表失败，跳过");
+        }
+
+        try
+        {
+            var beans = await _schemaReader.ReadBeansAsync(confPath);
+            foreach (var b in beans) result.Add(b.FullName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "读取 Bean 类型列表失败，跳过");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 校验类型全名合法性：每段由字母开头，仅含字母/数字/下划线，段之间用 '.' 分隔。
+    /// </summary>
+    private static void ValidateFullName(string fullName, string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException($"{typeName}全名不能为空。", nameof(fullName));
+
+        var parts = fullName.Trim().Split('.');
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrEmpty(part))
+                throw new ArgumentException(
+                    $"{typeName}名称中包含连续的 '.' 或首尾有 '.'：'{fullName}'", nameof(fullName));
+
+            if (!char.IsLetter(part[0]))
+                throw new ArgumentException(
+                    $"{typeName}名称每段必须以字母开头，非法名称：'{fullName}'", nameof(fullName));
+
+            foreach (var c in part)
+            {
+                if (!char.IsLetterOrDigit(c) && c != '_')
+                    throw new ArgumentException(
+                        $"{typeName}名称包含非法字符 '{c}'：'{fullName}'", nameof(fullName));
+            }
+        }
     }
 
     /// <summary>

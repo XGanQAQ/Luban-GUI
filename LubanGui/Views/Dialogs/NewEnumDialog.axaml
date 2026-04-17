@@ -7,8 +7,8 @@
         x:Class="LubanGui.Views.Dialogs.NewEnumDialog"
         x:DataType="vm:NewEnumDialogViewModel"
         Title="新建枚举"
-        Width="520" Height="420"
-        MinWidth="400" MinHeight="300"
+        Width="600" Height="460"
+        MinWidth="480" MinHeight="340"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 
@@ -16,18 +16,36 @@
         <vm:NewEnumDialogViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16">
 
         <!-- 枚举全名 -->
-        <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,8">
+        <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Text="枚举全名:" VerticalAlignment="Center" />
             <TextBox Grid.Column="1"
                      Text="{Binding EnumFullName}"
                      Watermark="如 cfg.EQualityType" />
         </Grid>
 
+        <!-- flags / unique 选项 -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16" Margin="120,0,0,6">
+            <CheckBox Content="标志位枚举（flags）"
+                      IsChecked="{Binding IsFlags}"
+                      ToolTip.Tip="勾选后可用 | 组合多个枚举值（如 READ|WRITE）" />
+            <CheckBox Content="值唯一（unique）"
+                      IsChecked="{Binding IsUnique}"
+                      ToolTip.Tip="要求每个枚举项的整数值不重复（推荐勾选）" />
+        </StackPanel>
+
+        <!-- 错误提示 -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="OrangeRed"
+                   FontSize="12"
+                   Margin="0,0,0,6"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- 枚举值列表 -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="3"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="1"
                 CornerRadius="4"
@@ -38,21 +56,23 @@
                             Orientation="Horizontal"
                             Margin="0,0,0,6"
                             Spacing="8">
-                    <TextBlock Text="枚举值" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="枚举项" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <Button Content="+ 添加"
                             Command="{Binding AddItemCommand}"
                             Padding="8,2" />
                 </StackPanel>
 
-                <!-- 列标题 -->
+                <!-- 列标题：名称 | 别名 | 值 | 注释 | 删 -->
                 <Grid DockPanel.Dock="Top"
-                      ColumnDefinitions="*,80,*,32"
+                      ColumnDefinitions="*,90,70,*,32"
                       Margin="0,0,0,4">
-                    <TextBlock Grid.Column="0" Text="名称" FontSize="11"
+                    <TextBlock Grid.Column="0" Text="名称 *" FontSize="11"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                    <TextBlock Grid.Column="1" Text="值" FontSize="11"
+                    <TextBlock Grid.Column="1" Text="别名" FontSize="11"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                    <TextBlock Grid.Column="2" Text="注释" FontSize="11"
+                    <TextBlock Grid.Column="2" Text="值" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                    <TextBlock Grid.Column="3" Text="注释" FontSize="11"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                 </Grid>
 
@@ -60,11 +80,12 @@
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:EnumItemViewModel">
-                                <Grid ColumnDefinitions="*,80,*,32" Margin="0,2">
-                                    <TextBox Grid.Column="0" Text="{Binding Name}" Watermark="名称" Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="1" Text="{Binding Value}" Watermark="值" Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="2" Text="{Binding Comment}" Watermark="注释" Margin="0,0,4,0" />
-                                    <Button Grid.Column="3"
+                                <Grid ColumnDefinitions="*,90,70,*,32" Margin="0,2">
+                                    <TextBox Grid.Column="0" Text="{Binding Name}"    Watermark="名称" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="1" Text="{Binding Alias}"   Watermark="别名" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="2" Text="{Binding Value}"   Watermark="值"   Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="3" Text="{Binding Comment}" Watermark="注释" Margin="0,0,4,0" />
+                                    <Button Grid.Column="4"
                                             Content="✕"
                                             Command="{Binding RemoveCommand}"
                                             Padding="4,0"
@@ -78,7 +99,7 @@
         </Border>
 
         <!-- 按钮行 -->
-        <StackPanel Grid.Row="2"
+        <StackPanel Grid.Row="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8">
