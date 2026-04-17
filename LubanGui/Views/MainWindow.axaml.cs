@@ -234,6 +234,15 @@ public partial class MainWindow : Window
         }
 
         var dialogVm = new NewTableDialogViewModel();
+
+        // 注入类型建议（内置基础类型 + 容器模板 + 自定义类型），供字段类型自动补全使用
+        try
+        {
+            var suggestions = await schemaService.GetAvailableTypeNamesAsync(vm.CurrentProject.ProjectPath);
+            dialogVm.SetAvailableTypes(suggestions);
+        }
+        catch { /* 获取失败时不影响对话框打开 */ }
+
         var dialog = new NewTableDialog(dialogVm);
         var result = await dialog.ShowDialog<NewTableResult?>(this);
 

@@ -85,7 +85,17 @@ public class SchemaService : ISchemaService
 
         _logger.LogInformation("创建表格 {ValueType} → {Path}", fullName, xlsxAbsPath);
 
-        // 1. 创建数据 xlsx
+        // 1. 校验字段类型（前置拦截，避免写入非法结构）
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name)) continue;
+            var typeError = ContainerTypeValidator.Validate(field.Type);
+            if (typeError != null)
+                throw new ArgumentException(
+                    $"字段 '{field.Name}' 的类型不合法：{typeError}", nameof(fields));
+        }
+
+        // 2. 创建数据 xlsx
         ExcelWriter.CreateDataXlsx(xlsxAbsPath, fields);
 
         // 2. 构建 TableMeta
@@ -237,6 +247,16 @@ public class SchemaService : ISchemaService
         if (fields.Count == 0)
             throw new ArgumentException("Bean 至少需要一个字段。", nameof(fields));
 
+        // 校验字段类型
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name)) continue;
+            var typeError = ContainerTypeValidator.Validate(field.Type);
+            if (typeError != null)
+                throw new ArgumentException(
+                    $"字段 '{field.Name}' 的类型不合法：{typeError}", nameof(fields));
+        }
+
         var beansXlsx = Path.Combine(projectPath, "Datas", "__beans__.xlsx");
         _logger.LogInformation("开始创建 Bean {FullName}（{Count} 个字段）", fullName, fields.Count);
 
@@ -293,7 +313,7 @@ public class SchemaService : ISchemaService
             _logger.LogWarning(ex, "读取 Bean 类型列表失败，跳过");
         }
 
-        return result;
+        return ContainerTypeValidator.BuildTypeSuggestions(result);
     }
 
     /// <summary>

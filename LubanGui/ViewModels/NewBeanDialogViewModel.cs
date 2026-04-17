@@ -5,6 +5,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LubanGui.Models;
+using LubanGui.Services;
 
 namespace LubanGui.ViewModels;
 
@@ -43,7 +44,10 @@ public partial class NewBeanDialogViewModel : ObservableObject
     {
         AvailableTypes = types;
         foreach (var f in Fields)
+        {
             f.AvailableTypes = types;
+            f.ValidationRequested = NotifyValidation;
+        }
     }
 
     [RelayCommand]
@@ -52,6 +56,7 @@ public partial class NewBeanDialogViewModel : ObservableObject
         var vm = new FieldDefinitionViewModel(f => { Fields.Remove(f); NotifyValidation(); })
         {
             AvailableTypes = AvailableTypes,
+            ValidationRequested = NotifyValidation,
         };
         Fields.Add(vm);
         NotifyValidation();
@@ -104,6 +109,15 @@ public partial class NewBeanDialogViewModel : ObservableObject
         {
             if (!string.IsNullOrWhiteSpace(field.Name) && !seen.Add(field.Name))
                 return $"字段名重复：'{field.Name}'";
+        }
+
+        // 检查字段类型合法性
+        foreach (var field in Fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name)) continue;
+            var typeError = ContainerTypeValidator.Validate(field.Type);
+            if (typeError != null)
+                return $"字段 '{field.Name}' 的类型不合法：{typeError}";
         }
 
         return string.Empty;

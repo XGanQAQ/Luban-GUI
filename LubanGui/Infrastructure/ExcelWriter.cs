@@ -134,10 +134,15 @@ public static class ExcelWriter
 
         // Row 1：var row（同时作为 meta 行）- A1 = "##var"，B1+ = 字段名
         // 规范要求 ##var 必须是第一行，否则整个 Sheet 被 Luban 忽略
+        // 对容器类型字段追加 #sep=; 标注，使数据可在单个单元格内用 ';' 分隔填写
         sheet.Cell(1, 1).Value = "##var";
         for (int i = 0; i < fields.Count; i++)
         {
-            sheet.Cell(1, i + 2).Value = fields[i].Name;
+            var fieldName = fields[i].Name;
+            var varName = IsContainerType(fields[i].Type)
+                ? fieldName + "#sep=;"
+                : fieldName;
+            sheet.Cell(1, i + 2).Value = varName;
         }
 
         // Row 2：type row - A2 = "##type"，B2+ = 字段类型
@@ -563,6 +568,17 @@ public static class ExcelWriter
         {
             Directory.CreateDirectory(dir);
         }
+    }
+
+    /// <summary>
+    /// 判断字段类型是否为容器类型（array / list / set / map）。
+    /// 容器类型字段在 ##var 行需追加 #sep=; 以使用单单元格填写模式。
+    /// </summary>
+    private static bool IsContainerType(string type)
+    {
+        if (string.IsNullOrWhiteSpace(type)) return false;
+        var head = type.Split(',')[0].Trim();
+        return head is "array" or "list" or "set" or "map";
     }
 
     /// <summary>返回下一个可写入数据的行号（跳过 ## 行和 ##var 行，以及已有数据行）。</summary>

@@ -16,7 +16,7 @@
         <vm:NewTableDialogViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16">
 
         <!-- 表格全名 -->
         <Grid Grid.Row="0" ColumnDefinitions="120,*" Margin="0,0,0,8">
@@ -27,15 +27,23 @@
         </Grid>
 
         <!-- 索引字段 -->
-        <Grid Grid.Row="1" ColumnDefinitions="120,*" Margin="0,0,0,8">
+        <Grid Grid.Row="1" ColumnDefinitions="120,*" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Text="索引字段:" VerticalAlignment="Center" />
             <TextBox Grid.Column="1"
                      Text="{Binding IndexField}"
                      Watermark="如 id" />
         </Grid>
 
+        <!-- 错误提示 -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="OrangeRed"
+                   FontSize="12"
+                   Margin="0,0,0,6"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- 字段列表 -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="1"
                 CornerRadius="4"
@@ -73,10 +81,12 @@
                                              Text="{Binding Name}"
                                              Watermark="字段名"
                                              Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding Type}"
-                                             Watermark="类型"
-                                             Margin="0,0,4,0" />
+                                    <AutoCompleteBox Grid.Column="1"
+                                                     Text="{Binding Type}"
+                                                     ItemsSource="{Binding AvailableTypes}"
+                                                     FilterMode="Contains"
+                                                     Watermark="int, list,int, map,int,string…"
+                                                     Margin="0,0,4,0" />
                                     <TextBox Grid.Column="2"
                                              Text="{Binding Comment}"
                                              Watermark="注释（可选）"
@@ -96,7 +106,7 @@
         </Border>
 
         <!-- 按钮行 -->
-        <StackPanel Grid.Row="3"
+        <StackPanel Grid.Row="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8">

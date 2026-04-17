@@ -81,3 +81,5 @@ docs/
 - `lubanSrc\Luban\Luban.csproj` 是 CLI 入口，引用了各语言/格式的生成器、Schema、加载器、校验器等 `Luban.*` 项目。入口 `lubanSrc\Luban\Program.cs` 负责加载全局配置、创建 Pipeline 并执行代码生成。监听模式实现于 `lubanSrc\Luban\Utils\DirectoryWatcher.cs`。
 - `LubanGui\luban\` 是打包进去的 Luban 运行时快照，应视为构建产物/运行时负载，`lubanSrc\` 才是可编辑的源码。
 - `docs\` 中的文档描述了 GUI 的目标架构与路线图（含 `ExportService`、`ConfigManager`、`LubanExecutor`、`ProcessManager` 等服务），是重要的设计背景，但其中大部分结构在 `LubanGui\` 中尚未实现。
+
+lubanSrc不进行改动，所有的改动都在LubanGui中进行，LubanGui中需要实现一个适配层来调用lubanSrc中的功能，这样就可以避免直接修改lubanSrc中的代码了，这样就可以更好的维护和扩展了。

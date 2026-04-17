@@ -26,6 +26,14 @@ public partial class FieldDefinitionViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<string> AvailableTypes { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// 当字段名或类型变更时触发，父级 ViewModel 可订阅以驱动整体校验刷新。
+    /// </summary>
+    public Action? ValidationRequested { get; set; }
+
+    partial void OnNameChanged(string value) => ValidationRequested?.Invoke();
+    partial void OnTypeChanged(string value) => ValidationRequested?.Invoke();
+
     public IRelayCommand RemoveCommand { get; }
 
     public FieldDefinitionViewModel(Action<FieldDefinitionViewModel> removeAction)

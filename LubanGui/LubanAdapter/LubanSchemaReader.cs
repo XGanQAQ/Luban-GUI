@@ -73,7 +73,19 @@ public class LubanSchemaReader : ILubanSchemaReader
                     EnvManager.Current = new EnvManager(new Dictionary<string, string>());
 
                     ISchemaCollector collector = SchemaManager.Ins.CreateSchemaCollector("default");
-                    collector.Load(config);
+                    try
+                    {
+                        collector.Load(config);
+                    }
+                    catch (AggregateException aggEx)
+                    {
+                        // 部分表的数据文件不存在（readSchemaFromFile=true 但文件已被删除）
+                        // 成功加载的 bean 已经通过 Add() 写入 collector，可以继续获取部分结果
+                        foreach (var inner in aggEx.InnerExceptions)
+                        {
+                            _logger.LogWarning("Schema 加载跳过某表（数据文件可能已被删除）：{Message}", inner.Message);
+                        }
+                    }
                     return collector.CreateRawAssembly();
                 }
             }
