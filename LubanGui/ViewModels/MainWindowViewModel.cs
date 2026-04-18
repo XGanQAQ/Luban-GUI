@@ -52,6 +52,7 @@ public partial class MainWindowViewModel : ViewModelBase
         FilteredTables.Clear();
         _cachedTableMetas.Clear();
         ClearPreview();
+        ClearDataTypes();
 
         // 当用户通过 ComboBox 切换项目时，通知 ProjectManager（避免重入）
         if (!_isSyncingProject && _projectManager != null && value != null
@@ -110,6 +111,25 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private TableMeta? _selectedTableMeta;
 
+    // ── 数据类型列表 ───────────────────────────────────────────────────────────
+
+    /// <summary>统一类型列表（内置类型 + 枚举 + Bean），绑定到「数据类型列表」窗口。</summary>
+    public ObservableCollection<DataTypeListItem> DataTypes { get; } = new();
+
+    [ObservableProperty]
+    private bool _isDataTypesLoading;
+
+    [ObservableProperty]
+    private int _builtinTypeCount;
+
+    [ObservableProperty]
+    private int _enumTypeCount;
+
+    [ObservableProperty]
+    private int _beanTypeCount;
+
+    public int TotalTypeCount => BuiltinTypeCount + EnumTypeCount + BeanTypeCount;
+
     // ── UI 状态 ───────────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -135,6 +155,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? OpenLogWindowRequested;
     public event EventHandler? OpenExportSettingsRequested;
     public event EventHandler? OpenAboutRequested;
+    public event EventHandler? OpenDataTypeListRequested;
     public event EventHandler? NewProjectRequested;
     public event EventHandler? OpenProjectRequested;
     public event EventHandler? NewTableRequested;
@@ -577,6 +598,19 @@ public partial class MainWindowViewModel : ViewModelBase
         OpenLogWindowRequested?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
+    private async Task OpenDataTypeList()
+    {
+        if (CurrentProject == null)
+        {
+            AddLog(LogEntryLevel.Warning, "请先打开项目，再查看数据类型列表");
+            return;
+        }
+
+        await ReloadDataTypesAsync(CurrentProject.ProjectPath);
+        OpenDataTypeListRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
     private async Task RefreshTables()
     {
         if (CurrentProject == null)
@@ -585,6 +619,17 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         await RefreshTablesInternalAsync(CurrentProject.ProjectPath);
+    }
+
+    [RelayCommand]
+    private async Task RefreshDataTypes()
+    {
+        if (CurrentProject == null)
+        {
+            return;
+        }
+
+        await ReloadDataTypesAsync(CurrentProject.ProjectPath);
     }
 
     // ── 快捷操作工具栏命令 ────────────────────────────────────────────────────
@@ -710,6 +755,52 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         LogEntries.Clear();
         _logger.LogInformation("日志已清空");
+    }
+
+    private void ClearDataTypes()
+    {
+        DataTypes.Clear();
+        BuiltinTypeCount = 0;
+        EnumTypeCount = 0;
+        BeanTypeCount = 0;
+        OnPropertyChanged(nameof(TotalTypeCount));
+    }
+
+    private async Task ReloadDataTypesAsync(string projectPath)
+    {
+        if (_schemaService == null)
+        {
+            return;
+        }
+
+        IsDataTypesLoading = true;
+        try
+        {
+            var items = await _schemaService.GetUnifiedTypeListAsync(projectPath);
+
+            DataTypes.Clear();
+            foreach (var item in items)
+            {
+                DataTypes.Add(item);
+            }
+
+            BuiltinTypeCount = items.Count(i => i.Category == "内置");
+            EnumTypeCount = items.Count(i => i.Category == "枚举");
+            BeanTypeCount = items.Count(i => i.Category == "Bean");
+            OnPropertyChanged(nameof(TotalTypeCount));
+
+            AddLog(LogEntryLevel.Info,
+                $"已加载数据类型：共 {TotalTypeCount} 项（内置 {BuiltinTypeCount} / 枚举 {EnumTypeCount} / Bean {BeanTypeCount}）");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载数据类型列表失败");
+            AddLog(LogEntryLevel.Error, $"加载数据类型列表失败：{ex.Message}");
+        }
+        finally
+        {
+            IsDataTypesLoading = false;
+        }
     }
 
     // ── 导出配置持久化 ────────────────────────────────────────────────────────

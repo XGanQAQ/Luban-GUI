@@ -85,11 +85,14 @@ public class SchemaService : ISchemaService
 
         _logger.LogInformation("创建表格 {ValueType} → {Path}", fullName, xlsxAbsPath);
 
+        // 仅允许来自 __enums__.xlsx / __beans__.xlsx 的自定义类型
+        var allowedCustomTypes = await LoadAllowedCustomTypesAsync(projectPath);
+
         // 1. 校验字段类型（前置拦截，避免写入非法结构）
         foreach (var field in fields)
         {
             if (string.IsNullOrWhiteSpace(field.Name)) continue;
-            var typeError = ContainerTypeValidator.Validate(field.Type);
+            var typeError = ContainerTypeValidator.Validate(field.Type, allowedCustomTypes);
             if (typeError != null)
                 throw new ArgumentException(
                     $"字段 '{field.Name}' 的类型不合法：{typeError}", nameof(fields));
@@ -247,11 +250,16 @@ public class SchemaService : ISchemaService
         if (fields.Count == 0)
             throw new ArgumentException("Bean 至少需要一个字段。", nameof(fields));
 
+        // 仅允许来自 __enums__.xlsx / __beans__.xlsx 的自定义类型。
+        // 允许当前正在创建的 Bean 自引用。
+        var allowedCustomTypes = await LoadAllowedCustomTypesAsync(projectPath);
+        allowedCustomTypes.Add(fullName);
+
         // 校验字段类型
         foreach (var field in fields)
         {
             if (string.IsNullOrWhiteSpace(field.Name)) continue;
-            var typeError = ContainerTypeValidator.Validate(field.Type);
+            var typeError = ContainerTypeValidator.Validate(field.Type, allowedCustomTypes);
             if (typeError != null)
                 throw new ArgumentException(
                     $"字段 '{field.Name}' 的类型不合法：{typeError}", nameof(fields));
@@ -287,33 +295,172 @@ public class SchemaService : ISchemaService
     /// <inheritdoc/>
     public async Task<IReadOnlyList<string>> GetAvailableTypeNamesAsync(string projectPath)
     {
+        var result = await LoadAllowedCustomTypesAsync(projectPath);
+        return ContainerTypeValidator.BuildTypeSuggestions(result.ToList());
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<DataTypeListItem>> GetUnifiedTypeListAsync(string projectPath)
+    {
+        var list = new List<DataTypeListItem>();
+
+        // 1) 内置基础类型
+        foreach (var primitive in ContainerTypeValidator.GetPrimitiveTypeNames())
+        {
+            list.Add(new DataTypeListItem
+            {
+                Category = "内置",
+                Name = primitive,
+                Description = "Luban 内置基础类型",
+            });
+        }
+
+        var datasDir = Path.Combine(projectPath, "Datas");
+        var enumsXlsx = Path.Combine(datasDir, "__enums__.xlsx");
+        var beansXlsx = Path.Combine(datasDir, "__beans__.xlsx");
+
+        var declaredEnumNames = new HashSet<string>(ExcelWriter.ReadEnumFullNames(enumsXlsx), StringComparer.Ordinal);
+        var declaredBeanNames = new HashSet<string>(ExcelWriter.ReadBeanFullNames(beansXlsx), StringComparer.Ordinal);
+
         var confPath = Path.Combine(projectPath, "luban.conf");
         if (!File.Exists(confPath))
-            return Array.Empty<string>();
+        {
+            foreach (var enumName in declaredEnumNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(new DataTypeListItem
+                {
+                    Category = "枚举",
+                    Name = enumName,
+                    Description = "枚举（来自 __enums__.xlsx）",
+                });
+            }
+            foreach (var beanName in declaredBeanNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(new DataTypeListItem
+                {
+                    Category = "Bean",
+                    Name = beanName,
+                    Description = "Bean（来自 __beans__.xlsx）",
+                });
+            }
 
-        var result = new List<string>();
+            return list
+                .OrderBy(i => GetCategoryOrder(i.Category))
+                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
+        // 2) 枚举
         try
         {
             var enums = await _schemaReader.ReadEnumsAsync(confPath);
-            foreach (var e in enums) result.Add(e.FullName);
+            foreach (var e in enums)
+            {
+                if (!declaredEnumNames.Contains(e.FullName))
+                    continue;
+
+                var flagsText = e.IsFlags ? "，flags" : string.Empty;
+                list.Add(new DataTypeListItem
+                {
+                    Category = "枚举",
+                    Name = e.FullName,
+                    Description = $"枚举项 {e.Items.Count} 个{flagsText}",
+                });
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "读取枚举类型列表失败，跳过");
+            _logger.LogWarning(ex, "读取枚举类型失败，跳过枚举列表");
         }
 
+        // 3) Bean
         try
         {
             var beans = await _schemaReader.ReadBeansAsync(confPath);
-            foreach (var b in beans) result.Add(b.FullName);
+            foreach (var b in beans)
+            {
+                if (!declaredBeanNames.Contains(b.FullName))
+                    continue;
+
+                var parentText = string.IsNullOrWhiteSpace(b.Parent) ? string.Empty : $"，继承 {b.Parent}";
+                list.Add(new DataTypeListItem
+                {
+                    Category = "Bean",
+                    Name = b.FullName,
+                    Description = $"字段 {b.Fields.Count} 个{parentText}",
+                });
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "读取 Bean 类型列表失败，跳过");
+            _logger.LogWarning(ex, "读取 Bean 类型失败，跳过 Bean 列表");
         }
 
-        return ContainerTypeValidator.BuildTypeSuggestions(result);
+        // 回填：schema 读取失败或缺失时，仍展示在 xlsx 中声明的类型名。
+        var existingEnumNames = new HashSet<string>(
+            list.Where(i => i.Category == "枚举").Select(i => i.Name),
+            StringComparer.Ordinal);
+        foreach (var enumName in declaredEnumNames)
+        {
+            if (existingEnumNames.Contains(enumName))
+                continue;
+
+            list.Add(new DataTypeListItem
+            {
+                Category = "枚举",
+                Name = enumName,
+                Description = "枚举（来自 __enums__.xlsx）",
+            });
+        }
+
+        var existingBeanNames = new HashSet<string>(
+            list.Where(i => i.Category == "Bean").Select(i => i.Name),
+            StringComparer.Ordinal);
+        foreach (var beanName in declaredBeanNames)
+        {
+            if (existingBeanNames.Contains(beanName))
+                continue;
+
+            list.Add(new DataTypeListItem
+            {
+                Category = "Bean",
+                Name = beanName,
+                Description = "Bean（来自 __beans__.xlsx）",
+            });
+        }
+
+        return list
+            .OrderBy(i => GetCategoryOrder(i.Category))
+            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static int GetCategoryOrder(string category) => category switch
+    {
+        "内置" => 0,
+        "枚举" => 1,
+        "Bean" => 2,
+        _ => 99,
+    };
+
+    /// <summary>
+    /// 读取项目允许的自定义类型集合：仅包含枚举与 Bean 类型。
+    /// </summary>
+    private Task<HashSet<string>> LoadAllowedCustomTypesAsync(string projectPath)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+
+        // 以元数据文件为准：自定义类型只能来自 __enums__.xlsx 与 __beans__.xlsx。
+        var datasDir = Path.Combine(projectPath, "Datas");
+        var enumsXlsx = Path.Combine(datasDir, "__enums__.xlsx");
+        var beansXlsx = Path.Combine(datasDir, "__beans__.xlsx");
+
+        foreach (var enumName in ExcelWriter.ReadEnumFullNames(enumsXlsx))
+            result.Add(enumName);
+        foreach (var beanName in ExcelWriter.ReadBeanFullNames(beansXlsx))
+            result.Add(beanName);
+
+        return Task.FromResult(result);
     }
 
     /// <summary>

@@ -22,6 +22,14 @@ internal static class ContainerTypeValidator
         "array", "list", "set", "map",
     };
 
+    /// <summary>获取内置基础类型名称列表（按字典序）。</summary>
+    public static IReadOnlyList<string> GetPrimitiveTypeNames()
+    {
+        var list = new List<string>(s_primitiveTypes);
+        list.Sort(StringComparer.Ordinal);
+        return list;
+    }
+
     /// <summary>
     /// 校验字段类型表达式。
     /// </summary>
@@ -29,6 +37,17 @@ internal static class ContainerTypeValidator
     /// <c>null</c> 表示合法；否则返回可读的错误描述。
     /// </returns>
     public static string? Validate(string typeExpr)
+        => Validate(typeExpr, allowedCustomTypes: null);
+
+    /// <summary>
+    /// 校验字段类型表达式，并可选地限制自定义类型必须来自允许列表。
+    /// </summary>
+    /// <param name="typeExpr">类型表达式。</param>
+    /// <param name="allowedCustomTypes">
+    /// 允许的自定义类型全名集合（通常来自 __enums__.xlsx + __beans__.xlsx）。
+    /// 传 null 时只做语法校验，不校验来源。
+    /// </param>
+    public static string? Validate(string typeExpr, IReadOnlyCollection<string>? allowedCustomTypes)
     {
         if (string.IsNullOrWhiteSpace(typeExpr))
             return "类型不能为空";
@@ -39,15 +58,15 @@ internal static class ContainerTypeValidator
         if (!s_containerKeywords.Contains(head))
         {
             // 非容器关键字：直接判断为简单类型
-            return IsValidSimpleType(head)
+            return IsValidSimpleType(head, allowedCustomTypes)
                 ? null
                 : $"未知类型 '{head}'，应为内置基础类型或合法的自定义类型名（如 cfg.MyEnum）";
         }
 
         return head switch
         {
-            "array" or "list" or "set" => ValidateListLike(head, parts),
-            "map"                       => ValidateMap(parts),
+            "array" or "list" or "set" => ValidateListLike(head, parts, allowedCustomTypes),
+            "map"                       => ValidateMap(parts, allowedCustomTypes),
             _                           => $"不支持的容器类型 '{head}'",
         };
     }
@@ -77,7 +96,7 @@ internal static class ContainerTypeValidator
     // 内部校验辅助
     // ──────────────────────────────────────────────────────────────
 
-    private static string? ValidateListLike(string keyword, string[] parts)
+    private static string? ValidateListLike(string keyword, string[] parts, IReadOnlyCollection<string>? allowedCustomTypes)
     {
         if (parts.Length != 2)
             return $"'{keyword}' 需要恰好 1 个元素类型，写法：{keyword},<元素类型>（收到 {parts.Length - 1} 个参数）";
@@ -86,13 +105,13 @@ internal static class ContainerTypeValidator
         if (s_containerKeywords.Contains(elem))
             return $"v0.2 不支持嵌套容器（{keyword} 的元素不能是容器类型 '{elem}'）";
 
-        if (!IsValidSimpleType(elem))
+        if (!IsValidSimpleType(elem, allowedCustomTypes))
             return $"'{keyword}' 的元素类型 '{elem}' 不合法，应为内置基础类型或自定义类型名";
 
         return null;
     }
 
-    private static string? ValidateMap(string[] parts)
+    private static string? ValidateMap(string[] parts, IReadOnlyCollection<string>? allowedCustomTypes)
     {
         if (parts.Length != 3)
             return $"'map' 需要恰好 2 个类型参数，写法：map,<键类型>,<值类型>（收到 {parts.Length - 1} 个参数）";
@@ -102,19 +121,36 @@ internal static class ContainerTypeValidator
 
         if (s_containerKeywords.Contains(key))
             return $"map 的键类型不能是容器类型 '{key}'";
-        if (!IsValidSimpleType(key))
+        if (!IsValidSimpleType(key, allowedCustomTypes))
             return $"map 的键类型 '{key}' 不合法，应为内置基础类型或自定义类型名";
 
         if (s_containerKeywords.Contains(val))
             return $"v0.2 不支持嵌套容器，map 的值类型不能是容器 '{val}'";
-        if (!IsValidSimpleType(val))
+        if (!IsValidSimpleType(val, allowedCustomTypes))
             return $"map 的值类型 '{val}' 不合法，应为内置基础类型或自定义类型名";
 
         return null;
     }
 
-    private static bool IsValidSimpleType(string name) =>
-        s_primitiveTypes.Contains(name) || IsCustomTypeName(name);
+    private static bool IsValidSimpleType(string name, IReadOnlyCollection<string>? allowedCustomTypes)
+    {
+        if (s_primitiveTypes.Contains(name))
+            return true;
+
+        if (!IsCustomTypeName(name))
+            return false;
+
+        // 未提供白名单时，仅做语法校验；提供白名单时要求类型已定义。
+        if (allowedCustomTypes == null)
+            return true;
+
+        foreach (var typeName in allowedCustomTypes)
+        {
+            if (string.Equals(typeName, name, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// 判断名称是否为合法的自定义类型标识符（支持命名空间点分格式，如 cfg.Item）。

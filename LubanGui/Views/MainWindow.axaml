@@ -67,6 +67,9 @@
                     <MenuItem Header="📋 日志窗口(_L)"
                               Command="{Binding OpenLogWindowCommand}"
                               InputGesture="Ctrl+L" />
+                    <MenuItem Header="🧩 数据类型列表(_T)"
+                              Command="{Binding OpenDataTypeListCommand}"
+                              InputGesture="Ctrl+Shift+T" />
                     <Separator />
                     <MenuItem Header="刷新表格列表(_R)"
                               Command="{Binding RefreshTablesCommand}" />

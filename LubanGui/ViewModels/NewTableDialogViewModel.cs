@@ -123,7 +123,7 @@ public partial class NewTableDialogViewModel : ObservableObject
         foreach (var field in Fields)
         {
             if (string.IsNullOrWhiteSpace(field.Name)) continue;
-            var typeError = ContainerTypeValidator.Validate(field.Type);
+            var typeError = ContainerTypeValidator.Validate(field.Type, AvailableTypes);
             if (typeError != null)
                 return $"字段 '{field.Name}' 的类型不合法：{typeError}";
         }

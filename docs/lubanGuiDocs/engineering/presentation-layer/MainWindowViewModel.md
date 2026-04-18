@@ -29,6 +29,16 @@
 | `StartExportCommand` | 用户点击「全量导表」按钮 |
 | `CancelExportCommand` | 用户点击「取消」按钮 |
 | `OpenLogWindowCommand` | 用户点击「日志窗口」菜单项 |
+| `OpenDataTypeListCommand` | 用户点击「数据类型列表」菜单项 |
+| `RefreshDataTypesCommand` | 用户在「数据类型列表」窗口点击刷新 |
+
+---
+
+## 数据类型列表能力
+
+- 维护 `DataTypes` 集合，统一承载：内置默认类型 + 自定义类型（enum、bean）。
+- 维护 `BuiltinTypeCount`、`EnumTypeCount`、`BeanTypeCount` 与 `TotalTypeCount` 统计字段。
+- 通过 `OpenDataTypeListRequested` 事件通知 View 层打开二级窗口。
 
 ---
 

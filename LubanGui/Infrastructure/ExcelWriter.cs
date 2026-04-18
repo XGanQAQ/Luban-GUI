@@ -362,6 +362,58 @@ public static class ExcelWriter
     }
 
     /// <summary>
+    /// 读取 __enums__.xlsx 中声明的所有枚举 full_name（去重，保持文件顺序）。
+    /// </summary>
+    public static IReadOnlyList<string> ReadEnumFullNames(string path)
+    {
+        var result = new List<string>();
+        if (!File.Exists(path)) return result;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##", StringComparison.Ordinal)) continue;
+
+            var fullName = sheet.Cell(r, 2).GetString().Trim();
+            if (string.IsNullOrWhiteSpace(fullName)) continue;
+            if (seen.Add(fullName)) result.Add(fullName);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 读取 __beans__.xlsx 中声明的所有 Bean full_name（去重，保持文件顺序）。
+    /// </summary>
+    public static IReadOnlyList<string> ReadBeanFullNames(string path)
+    {
+        var result = new List<string>();
+        if (!File.Exists(path)) return result;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##", StringComparison.Ordinal)) continue;
+
+            var fullName = sheet.Cell(r, 2).GetString().Trim();
+            if (string.IsNullOrWhiteSpace(fullName)) continue;
+            if (seen.Add(fullName)) result.Add(fullName);
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// 向 __enums__.xlsx 追加一条枚举记录（多行模式：第一行写顶层字段，每个枚举项占一行）。
     /// </summary>
     /// <exception cref="FileNotFoundException">文件不存在。</exception>

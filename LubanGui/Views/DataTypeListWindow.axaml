@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:models="using:LubanGui.Models"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="500"
+        x:Class="LubanGui.Views.DataTypeListWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="数据类型列表"
+        Width="760" Height="500"
+        MinWidth="560" MinHeight="360"
+        CanResize="True">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0"
+                       Text="统一展示内置默认类型与自定义类型（enum、bean）"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold" />
+            <Button Grid.Column="1"
+                    Content="刷新"
+                    Command="{Binding RefreshDataTypesCommand}" />
+        </Grid>
+
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="8"
+                Margin="0,0,0,8">
+            <TextBlock>
+                <Run Text="总计: " />
+                <Run Text="{Binding TotalTypeCount}" />
+                <Run Text="  |  内置: " />
+                <Run Text="{Binding BuiltinTypeCount}" />
+                <Run Text="  |  枚举: " />
+                <Run Text="{Binding EnumTypeCount}" />
+                <Run Text="  |  Bean: " />
+                <Run Text="{Binding BeanTypeCount}" />
+                <Run Text="  |  加载中: " />
+                <Run Text="{Binding IsDataTypesLoading}" />
+            </TextBlock>
+        </Border>
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding DataTypes}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  GridLinesVisibility="All"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="True"
+                  FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="120" />
+                <DataGridTextColumn Header="类型名" Binding="{Binding Name}" Width="2*" />
+                <DataGridTextColumn Header="说明" Binding="{Binding Description}" Width="3*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+
+</Window>

@@ -21,6 +21,7 @@ namespace LubanGui.Views;
 public partial class MainWindow : Window
 {
     private LogWindow? _logWindow;
+    private DataTypeListWindow? _dataTypeListWindow;
 
     public MainWindow()
     {
@@ -36,6 +37,7 @@ public partial class MainWindow : Window
             vm.OpenLogWindowRequested += OnOpenLogWindowRequested;
             vm.OpenExportSettingsRequested += OnOpenExportSettingsRequested;
             vm.OpenAboutRequested += OnOpenAboutRequested;
+            vm.OpenDataTypeListRequested += OnOpenDataTypeListRequested;
             vm.NewProjectRequested += OnNewProjectRequested;
             vm.OpenProjectRequested += OnOpenProjectRequested;
             vm.NewTableRequested += OnNewTableRequested;
@@ -148,6 +150,20 @@ public partial class MainWindow : Window
     {
         var dialog = new AboutWindow { DataContext = DataContext };
         await dialog.ShowDialog(this);
+    }
+
+    private void OnOpenDataTypeListRequested(object? sender, EventArgs e)
+    {
+        if (_dataTypeListWindow == null || !_dataTypeListWindow.IsVisible)
+        {
+            _dataTypeListWindow = new DataTypeListWindow { DataContext = DataContext };
+            _dataTypeListWindow.Closed += (_, _) => _dataTypeListWindow = null;
+            _dataTypeListWindow.Show(this);
+        }
+        else
+        {
+            _dataTypeListWindow.Activate();
+        }
     }
 
     private async void OnNewProjectRequested(object? sender, EventArgs e)

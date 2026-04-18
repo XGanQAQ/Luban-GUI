@@ -53,4 +53,9 @@ public interface ISchemaService
     /// 供字段类型输入时提供自动补全候选列表。
     /// </summary>
     Task<IReadOnlyList<string>> GetAvailableTypeNamesAsync(string projectPath);
+
+    /// <summary>
+    /// 读取统一类型列表：内置默认类型 + 自定义类型（enum/bean）。
+    /// </summary>
+    Task<IReadOnlyList<DataTypeListItem>> GetUnifiedTypeListAsync(string projectPath);
 }

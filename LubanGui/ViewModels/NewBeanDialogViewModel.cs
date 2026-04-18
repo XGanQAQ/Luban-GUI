@@ -112,10 +112,14 @@ public partial class NewBeanDialogViewModel : ObservableObject
         }
 
         // 检查字段类型合法性
+        var allowedTypes = new List<string>(AvailableTypes);
+        if (!string.IsNullOrWhiteSpace(name))
+            allowedTypes.Add(name);
+
         foreach (var field in Fields)
         {
             if (string.IsNullOrWhiteSpace(field.Name)) continue;
-            var typeError = ContainerTypeValidator.Validate(field.Type);
+            var typeError = ContainerTypeValidator.Validate(field.Type, allowedTypes);
             if (typeError != null)
                 return $"字段 '{field.Name}' 的类型不合法：{typeError}";
         }
