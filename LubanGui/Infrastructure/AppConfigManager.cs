@@ -117,4 +117,14 @@ public class AppConfigManager
 
     /// <summary>获取自定义的 Luban DLL 路径（空字符串表示使用内置默认）。</summary>
     public string GetLubanDllPath() => _cache.LubanDllPath;
+
+    /// <summary>获取"删除表格时是否默认同时删除物理文件"的配置。</summary>
+    public bool GetDeleteTablePhysicalFileByDefault() => _cache.DeleteTablePhysicalFileByDefault;
+
+    /// <summary>保存"删除表格默认策略"设置。</summary>
+    public async Task SetDeleteTablePhysicalFileByDefaultAsync(bool value)
+    {
+        _cache.DeleteTablePhysicalFileByDefault = value;
+        await SaveAsync();
+    }
 }

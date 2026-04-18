@@ -18,4 +18,9 @@ public class AppConfig
     /// 为空时自动使用 GUI 内置的 <c>luban\Luban.dll</c>（位于应用程序目录下）。
     /// </summary>
     public string LubanDllPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 删除表格时的默认策略：true = 同时删除物理 xlsx 文件；false = 仅移除注册（保留文件）。
+    /// </summary>
+    public bool DeleteTablePhysicalFileByDefault { get; set; } = false;
 }

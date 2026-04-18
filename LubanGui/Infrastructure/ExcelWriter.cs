@@ -263,6 +263,41 @@ public static class ExcelWriter
     }
 
     /// <summary>
+    /// 从 __tables__.xlsx 中移除指定 full_name 的表格条目。
+    /// 返回 true 表示找到并删除，false 表示未找到。
+    /// </summary>
+    public static bool RemoveTableEntry(string path, string fullName)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        int targetRow = -1;
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##", StringComparison.Ordinal)) continue;
+
+            var b = sheet.Cell(r, 2).GetString().Trim();
+            if (b.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+            {
+                targetRow = r;
+                break;
+            }
+        }
+
+        if (targetRow < 0)
+            return false;
+
+        sheet.Row(targetRow).Delete();
+        workbook.Save();
+        return true;
+    }
+
+    /// <summary>
     /// 扫描 __tables__.xlsx，删除 full_name 重复的多余数据行，保留首次出现的记录。
     /// 返回被删除的重复行数。
     /// </summary>

@@ -163,6 +163,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? NewBeanRequested;
     public event EventHandler? ImportFileRequested;
 
+    /// <summary>请求删除指定表格（由 View 层处理确认对话框与实际删除）。</summary>
+    public event EventHandler<TableEntryViewModel?>? DeleteTableRequested;
+
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
     public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null, null) { }
@@ -446,6 +449,9 @@ public partial class MainWindowViewModel : ViewModelBase
             string.Equals(m.FullName, entry.Name, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>公开版本的 GetMetaForEntry，供 View 层在处理对话框时访问。</summary>
+    public TableMeta? GetMetaForEntryPublic(TableEntryViewModel entry) => GetMetaForEntry(entry);
+
     // ── 操作菜单命令 ──────────────────────────────────────────────────────────
 
     private bool CanExport() => !IsExporting;
@@ -709,6 +715,36 @@ public partial class MainWindowViewModel : ViewModelBase
         Tables.Remove(entry);
         ApplyTableFilter();
         AddLog(LogEntryLevel.Info, $"已从列表中移除：{entry.Name}（文件未被删除）");
+    }
+
+    [RelayCommand]
+    private void DeleteTable(TableEntryViewModel? entry)
+    {
+        if (entry == null)
+        {
+            return;
+        }
+
+        DeleteTableRequested?.Invoke(this, entry);
+    }
+
+    /// <summary>
+    /// 在 UI 中移除指定条目并清空预览（由 View 层在服务端删除成功后调用）。
+    /// </summary>
+    public void ApplyTableDeletion(TableEntryViewModel entry)
+    {
+        bool wasSelected = ReferenceEquals(SelectedTable, entry);
+
+        Tables.Remove(entry);
+        _cachedTableMetas.RemoveAll(m =>
+            string.Equals(m.FullName, entry.Name, StringComparison.OrdinalIgnoreCase));
+        ApplyTableFilter();
+
+        if (wasSelected)
+        {
+            SelectedTable = null;
+            ClearPreview();
+        }
     }
 
     /// <summary>

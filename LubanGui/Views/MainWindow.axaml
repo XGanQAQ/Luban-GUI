@@ -207,6 +207,9 @@
                                           Command="{Binding ShowTableInExplorerCommand}"
                                           CommandParameter="{Binding SelectedTable}" />
                                 <Separator />
+                                <MenuItem Header="🗑 删除表格..."
+                                          Command="{Binding DeleteTableCommand}"
+                                          CommandParameter="{Binding SelectedTable}" />
                                 <MenuItem Header="✕ 从列表中移除"
                                           Command="{Binding RemoveTableCommand}"
                                           CommandParameter="{Binding SelectedTable}" />

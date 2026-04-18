@@ -435,6 +435,43 @@ public class SchemaService : ISchemaService
             .ToList();
     }
 
+    /// <inheritdoc/>
+    public async Task DeleteTableAsync(
+        string projectPath,
+        string fullName,
+        string inputRelPath,
+        bool deletePhysicalFile)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException("表格全名不能为空", nameof(fullName));
+
+        _logger.LogInformation("开始删除表格 {FullName}（deleteFile={DeleteFile}）", fullName, deletePhysicalFile);
+
+        var tablesXlsx = Path.Combine(projectPath, "Datas", "__tables__.xlsx");
+        bool removed = await Task.Run(() => ExcelWriter.RemoveTableEntry(tablesXlsx, fullName));
+
+        if (removed)
+            _logger.LogInformation("已从 __tables__.xlsx 中移除注册条目：{FullName}", fullName);
+        else
+            _logger.LogWarning("__tables__.xlsx 中未找到表格条目：{FullName}", fullName);
+
+        if (deletePhysicalFile && !string.IsNullOrWhiteSpace(inputRelPath))
+        {
+            var absPath = Path.Combine(projectPath, "Datas", inputRelPath);
+            if (File.Exists(absPath))
+            {
+                await Task.Run(() => File.Delete(absPath));
+                _logger.LogInformation("已删除物理文件：{Path}", absPath);
+            }
+            else
+            {
+                _logger.LogWarning("物理文件不存在，跳过删除：{Path}", absPath);
+            }
+        }
+
+        _logger.LogInformation("表格 {FullName} 删除完成", fullName);
+    }
+
     private static int GetCategoryOrder(string category) => category switch
     {
         "内置" => 0,

@@ -10,6 +10,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
+using LubanGui.Infrastructure;
 using LubanGui.Models;
 using LubanGui.Services;
 using LubanGui.ViewModels;
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
             vm.NewEnumRequested += OnNewEnumRequested;
             vm.NewBeanRequested += OnNewBeanRequested;
             vm.ImportFileRequested += OnImportFileRequested;
+            vm.DeleteTableRequested += OnDeleteTableRequested;
             vm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
@@ -412,6 +414,72 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             vm.AddLog(LogEntryLevel.Error, $"导入文件失败：{ex.Message}");
+        }
+    }
+
+    private async void OnDeleteTableRequested(object? sender, TableEntryViewModel? entry)
+    {
+        if (DataContext is not MainWindowViewModel vm || vm.CurrentProject == null || entry == null)
+        {
+            return;
+        }
+
+        var schemaService = GetService<ISchemaService>();
+        if (schemaService == null)
+        {
+            return;
+        }
+
+        var meta = vm.GetMetaForEntryPublic(entry);
+        if (meta == null)
+        {
+            vm.AddLog(LogEntryLevel.Warning, $"未找到表格元数据：{entry.Name}");
+            return;
+        }
+
+        // 读取默认删除策略
+        var appConfigManager = GetService<AppConfigManager>();
+        bool defaultDeleteFile = appConfigManager?.GetDeleteTablePhysicalFileByDefault() ?? false;
+
+        var dialogVm = new DeleteTableConfirmDialogViewModel
+        {
+            TableName = entry.Name,
+            DeletePhysicalFile = defaultDeleteFile,
+            SaveAsDefault = false,
+        };
+
+        var dialog = new DeleteTableConfirmDialog(dialogVm);
+        var result = await dialog.ShowDialog<DeleteTableConfirmResult?>(this);
+
+        if (result == null)
+        {
+            return;
+        }
+
+        // 保存默认策略
+        if (result.SaveAsDefault && appConfigManager != null)
+        {
+            await appConfigManager.SetDeleteTablePhysicalFileByDefaultAsync(result.DeletePhysicalFile);
+        }
+
+        try
+        {
+            await schemaService.DeleteTableAsync(
+                vm.CurrentProject.ProjectPath,
+                meta.FullName,
+                meta.Input,
+                result.DeletePhysicalFile);
+
+            vm.ApplyTableDeletion(entry);
+
+            var fileMsg = result.DeletePhysicalFile
+                ? "（已删除物理文件）"
+                : "（物理文件已保留）";
+            vm.AddLog(LogEntryLevel.Success, $"已删除表格：{meta.FullName} {fileMsg}");
+        }
+        catch (Exception ex)
+        {
+            vm.AddLog(LogEntryLevel.Error, $"删除表格失败：{ex.Message}");
         }
     }
 

@@ -58,4 +58,13 @@ public interface ISchemaService
     /// 读取统一类型列表：内置默认类型 + 自定义类型（enum/bean）。
     /// </summary>
     Task<IReadOnlyList<DataTypeListItem>> GetUnifiedTypeListAsync(string projectPath);
+
+    /// <summary>
+    /// 删除表格：从 __tables__.xlsx 中移除注册条目，并可选地删除对应的物理 xlsx 数据文件。
+    /// </summary>
+    /// <param name="projectPath">项目根目录。</param>
+    /// <param name="fullName">表格的 full_name（即 __tables__.xlsx 中 B 列的值，例如 "cfg.TbItem"）。</param>
+    /// <param name="inputRelPath">数据文件相对于 Datas/ 目录的路径（例如 "cfg/Item.xlsx"）。</param>
+    /// <param name="deletePhysicalFile">true 则同时删除物理数据文件；false 则仅移除注册条目。</param>
+    Task DeleteTableAsync(string projectPath, string fullName, string inputRelPath, bool deletePhysicalFile);
 }

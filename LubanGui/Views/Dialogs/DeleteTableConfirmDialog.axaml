@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LubanGui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="220"
+        x:Class="LubanGui.Views.Dialogs.DeleteTableConfirmDialog"
+        x:DataType="vm:DeleteTableConfirmDialogViewModel"
+        Title="删除表格"
+        Width="420" Height="230"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Design.DataContext>
+        <vm:DeleteTableConfirmDialogViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="*,Auto" Margin="16,12,16,12">
+
+        <!-- 内容区 -->
+        <StackPanel Grid.Row="0" Spacing="10">
+
+            <!-- 提示文字 -->
+            <TextBlock Text="将从 __tables__.xlsx 中移除以下表格注册条目："
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+            <TextBlock Text="{Binding TableName}"
+                       FontWeight="Bold"
+                       FontSize="14"
+                       TextTrimming="CharacterEllipsis" />
+
+            <!-- 删除策略 -->
+            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="删除策略" FontWeight="SemiBold" FontSize="12" />
+                    <RadioButton GroupName="DeleteStrategy"
+                                 Content="仅移除注册（保留 xlsx 数据文件）"
+                                 IsChecked="{Binding DeletePhysicalFile, Mode=TwoWay, Converter={x:Static BoolConverters.Not}}" />
+                    <RadioButton GroupName="DeleteStrategy"
+                                 Content="同时删除物理文件（不可恢复）"
+                                 IsChecked="{Binding DeletePhysicalFile, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
+            <!-- 记住选择 -->
+            <CheckBox Content="将此策略设为默认"
+                      IsChecked="{Binding SaveAsDefault}" />
+
+        </StackPanel>
+
+        <!-- 按钮区 -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Name="ConfirmButton"
+                    Content="确认删除"
+                    IsDefault="True" />
+            <Button Name="CancelButton"
+                    Content="取消"
+                    IsCancel="True" />
+        </StackPanel>
+
+    </Grid>
+
+</Window>
