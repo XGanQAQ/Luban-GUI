@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -80,10 +81,12 @@ public class LubanExecutor : ILubanExecutor
     {
         var psi = new ProcessStartInfo
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true,
+            RedirectStandardOutput  = true,
+            RedirectStandardError   = true,
+            UseShellExecute         = false,
+            CreateNoWindow          = true,
+            StandardOutputEncoding  = Encoding.UTF8,
+            StandardErrorEncoding   = Encoding.UTF8,
         };
 
         if (lubanExePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
