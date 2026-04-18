@@ -134,22 +134,19 @@ public static class ExcelWriter
 
         // Row 1：var row（同时作为 meta 行）- A1 = "##var"，B1+ = 字段名
         // 规范要求 ##var 必须是第一行，否则整个 Sheet 被 Luban 忽略
-        // 对容器类型字段追加 #sep=; 标注，使数据可在单个单元格内用 ';' 分隔填写
         sheet.Cell(1, 1).Value = "##var";
         for (int i = 0; i < fields.Count; i++)
         {
-            var fieldName = fields[i].Name;
-            var varName = IsContainerType(fields[i].Type)
-                ? fieldName + "#sep=;"
-                : fieldName;
-            sheet.Cell(1, i + 2).Value = varName;
+            sheet.Cell(1, i + 2).Value = fields[i].Name;
         }
 
         // Row 2：type row - A2 = "##type"，B2+ = 字段类型
+        // 容器类型采用单单元格 sep 模式：(container#sep=;),elem
+        // map 额外需要 key-value 分隔符：(map#sep=|;),key,value
         sheet.Cell(2, 1).Value = "##type";
         for (int i = 0; i < fields.Count; i++)
         {
-            sheet.Cell(2, i + 2).Value = fields[i].Type;
+            sheet.Cell(2, i + 2).Value = FormatTypeWithSep(fields[i].Type);
         }
 
         // Row 3（可选）：comment row - A3 = "##"，B3+ = 字段注释（人类可读，不参与解析）
@@ -571,14 +568,25 @@ public static class ExcelWriter
     }
 
     /// <summary>
-    /// 判断字段类型是否为容器类型（array / list / set / map）。
-    /// 容器类型字段在 ##var 行需追加 #sep=; 以使用单单元格填写模式。
+    /// 将字段类型转换为单单元格 sep 模式的 Luban 类型写法。
+    /// - array/list/set：(keyword#sep=;),elemType
+    /// - map：           (map#sep=|;),keyType,valueType
+    ///   其中 '|' 分隔 key 与 value，';' 分隔多个 key-value 对
+    /// - 非容器类型：原样返回
     /// </summary>
-    private static bool IsContainerType(string type)
+    private static string FormatTypeWithSep(string type)
     {
-        if (string.IsNullOrWhiteSpace(type)) return false;
-        var head = type.Split(',')[0].Trim();
-        return head is "array" or "list" or "set" or "map";
+        if (string.IsNullOrWhiteSpace(type)) return type;
+        var parts = type.Split(',');
+        var head = parts[0].Trim();
+        return head switch
+        {
+            "array" or "list" or "set" when parts.Length == 2
+                => $"({head}#sep=;),{parts[1].Trim()}",
+            "map" when parts.Length == 3
+                => $"(map#sep=|;),{parts[1].Trim()},{parts[2].Trim()}",
+            _ => type,
+        };
     }
 
     /// <summary>返回下一个可写入数据的行号（跳过 ## 行和 ##var 行，以及已有数据行）。</summary>
