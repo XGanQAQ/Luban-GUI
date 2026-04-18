@@ -9,7 +9,7 @@
             "program": "${workspaceFolder}/LubanGui/bin/Debug/net8.0/LubanGui.exe",
             "args": [],
             "cwd": "${workspaceFolder}/LubanGui",
-            "console": "internalConsole",
+            "console": "integratedTerminal",
             "stopAtEntry": false
         }
     ]

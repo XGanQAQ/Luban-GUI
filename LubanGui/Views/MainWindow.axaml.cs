@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using LubanGui.Models;
 using LubanGui.Services;
@@ -41,13 +45,6 @@ public partial class MainWindow : Window
             vm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
-        // 绑定 DataGrid 列标题双击事件（在 PreviewGrid 的列头上双击打开文件）
-        var grid = this.FindControl<DataGrid>("PreviewGrid");
-        if (grid != null)
-        {
-            grid.DoubleTapped += OnPreviewGridDoubleTapped;
-        }
-
         // 双击表格条目打开对应 xlsx 文件
         var listBox = this.FindControl<ListBox>("TableListBox");
         if (listBox != null)
@@ -72,7 +69,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 根据 ViewModel 的 PreviewColumnNames 重建 DataGrid 列。
-    /// 使用整数索引绑定 <c>[i]</c>，对应行数据 <c>IList&lt;string&gt;</c> 的第 i 个元素。
+    /// 每列使用 DataGridTemplateColumn，单元格携带"定位到 Excel 单元格"右键菜单。
     /// </summary>
     private void RebuildPreviewColumns()
     {
@@ -86,45 +83,43 @@ public partial class MainWindow : Window
         var columns = vm.PreviewColumnNames;
         for (int i = 0; i < columns.Count; i++)
         {
-            grid.Columns.Add(new DataGridTextColumn
+            int colIndex = i; // capture for closure
+            grid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = columns[i],
-                Binding = new Binding($"[{i}]"),
                 IsReadOnly = true,
-            });
-        }
-    }
-
-    private void OnPreviewGridDoubleTapped(object? sender, TappedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm)
-        {
-            return;
-        }
-
-        // 找到被双击的列头
-        if (e.Source is not Control source)
-        {
-            return;
-        }
-
-        // 查找祖先中的 DataGridColumnHeader
-        var element = source;
-        while (element != null)
-        {
-            if (element.GetType().Name == "DataGridColumnHeader")
-            {
-                // 取列头文本（DataGrid AutoGenerateColumns 时列头就是列名）
-                var headerContent = element.GetValue(ContentControl.ContentProperty);
-                if (headerContent is string fieldName)
+                CellTemplate = new FuncDataTemplate<IList<string>>((rowData, _) =>
                 {
-                    vm.OpenFileAtField(fieldName);
-                }
+                    var tb = new TextBlock
+                    {
+                        Text = rowData != null && colIndex < rowData.Count ? rowData[colIndex] : string.Empty,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        Padding = new Thickness(4, 0),
+                    };
 
-                break;
-            }
+                    // 用 Panel 填满整个单元格区域，确保任意位置右键都能命中 ContextMenu
+                    var panel = new Panel
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        VerticalAlignment = VerticalAlignment.Stretch,
+                        MinHeight = 22,
+                    };
+                    panel.Children.Add(tb);
 
-            element = element.Parent as Control;
+                    var menuItem = new MenuItem { Header = "定位到 Excel 单元格" };
+                    menuItem.Click += (_, _) =>
+                    {
+                        if (DataContext is not MainWindowViewModel vmCtx) return;
+                        var rowIdx = vmCtx.PreviewRows.IndexOf(rowData!);
+                        if (rowIdx >= 0)
+                            vmCtx.OpenCellInExcel(rowIdx, colIndex);
+                    };
+
+                    panel.ContextMenu = new ContextMenu { Items = { menuItem } };
+                    return panel;
+                }),
+            });
         }
     }
 

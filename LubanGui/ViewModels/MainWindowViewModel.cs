@@ -666,8 +666,12 @@ public partial class MainWindowViewModel : ViewModelBase
         AddLog(LogEntryLevel.Info, $"已从列表中移除：{entry.Name}（文件未被删除）");
     }
 
-    /// <summary>当用户在预览面板中双击列标题时调用（由 View 层传入列名）。</summary>
-    public void OpenFileAtField(string fieldName)
+    /// <summary>
+    /// 在 Excel 中定位到预览表格的指定单元格（由单元格右键菜单触发）。
+    /// </summary>
+    /// <param name="previewRowIndex">预览行的 0-based 索引。</param>
+    /// <param name="previewColIndex">预览列的 0-based 索引。</param>
+    public void OpenCellInExcel(int previewRowIndex, int previewColIndex)
     {
         if (SelectedTableMeta == null || CurrentProject == null || _fileOpenService == null)
         {
@@ -677,8 +681,15 @@ public partial class MainWindowViewModel : ViewModelBase
         var absPath = Path.Combine(CurrentProject.ProjectPath, "Datas", SelectedTableMeta.Input);
         try
         {
-            _fileOpenService.OpenFile(absPath);
-            AddLog(LogEntryLevel.Info, $"已打开文件（字段：{fieldName}）");
+            // Luban xlsx：前三行为 ##var / ##type / ## 注释，数据从第 4 行起；A 列留空，数据从 B 列（2）起
+            int excelRow = previewRowIndex + 4;
+            int excelCol = previewColIndex + 2;
+            _fileOpenService.OpenFileAtCell(absPath, excelRow, excelCol);
+
+            var colName = PreviewColumnNames != null && previewColIndex < PreviewColumnNames.Count
+                ? PreviewColumnNames[previewColIndex]
+                : $"列{previewColIndex + 1}";
+            AddLog(LogEntryLevel.Info, $"已定位到 Excel 单元格：第 {excelRow} 行，第 {excelCol} 列（{colName}）");
         }
         catch (Exception ex)
         {
