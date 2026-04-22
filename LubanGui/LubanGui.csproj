@@ -48,11 +48,12 @@
     <LubanProjectPath>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\Luban.csproj</LubanProjectPath>
     <LubanRuntimeSubDir Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)\</LubanRuntimeSubDir>
     <LubanOutputDir>$(MSBuildThisFileDirectory)..\lubanSrc\Luban\bin\$(Configuration)\net8.0\$(LubanRuntimeSubDir)</LubanOutputDir>
-    <LubanDeployDir>$(OutputPath)luban\</LubanDeployDir>
+    <LubanBuildDeployDir>$([MSBuild]::EnsureTrailingSlash('$(OutputPath)'))luban\</LubanBuildDeployDir>
+    <LubanPublishDeployDir>$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))luban\</LubanPublishDeployDir>
   </PropertyGroup>
 
   <!-- 在 GUI 构建前，先构建 Luban -->
-  <Target Name="BuildLuban" BeforeTargets="PreBuildEvent">
+  <Target Name="BuildLuban" BeforeTargets="Build">
     <Message Text="正在构建 Luban..." Importance="high" />
     <MSBuild Projects="$(LubanProjectPath)"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained)"
@@ -60,15 +61,27 @@
   </Target>
 
   <!-- 构建完成后，将 Luban 输出复制到 GUI 输出目录的 luban/ 子文件夹（含子目录如 Templates/） -->
-  <Target Name="CopyLubanToOutput" AfterTargets="BuildLuban">
+  <Target Name="CopyLubanToOutput" AfterTargets="Build">
     <ItemGroup>
       <LubanOutputFiles Include="$(LubanOutputDir)**\*" />
     </ItemGroup>
-    <MakeDir Directories="$(LubanDeployDir)" />
+    <MakeDir Directories="$(LubanBuildDeployDir)" />
     <Copy SourceFiles="@(LubanOutputFiles)"
-          DestinationFiles="@(LubanOutputFiles->'$(LubanDeployDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          DestinationFiles="@(LubanOutputFiles->'$(LubanBuildDeployDir)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
     <Message Text="Luban 已复制到输出目录 luban/" Importance="high" />
+  </Target>
+
+  <!-- 发布完成后，将 Luban 输出复制到发布根目录的 luban/ 子文件夹 -->
+  <Target Name="CopyLubanToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <LubanPublishFiles Include="$(LubanOutputDir)**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(LubanPublishDeployDir)" />
+    <Copy SourceFiles="@(LubanPublishFiles)"
+          DestinationFiles="@(LubanPublishFiles->'$(LubanPublishDeployDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Text="Luban 已复制到发布目录 luban/" Importance="high" />
   </Target>
 
 </Project>

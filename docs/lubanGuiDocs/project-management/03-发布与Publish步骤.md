@@ -50,8 +50,11 @@ dotnet publish .\LubanGui\LubanGui.csproj -c Release -r win-x64 --self-contained
 说明:
 
 1. 当前工程会在 GUI 构建前自动构建 lubanSrc\Luban。
-2. 构建后会自动把 Luban 输出复制到发布目录中的 luban 子目录。
+2. 构建后会自动把 Luban 输出复制到发布根目录中的 luban 子目录。
 3. 已支持 RuntimeIdentifier 透传，发布命令中带 -r 时可正确构建对应 RID 的 Luban 产物。
+4. `-o` 参数指定的是发布根目录，最终目录结构应为 `发布根目录\LubanGui.exe` 与 `发布根目录\luban\Luban.dll`。
+5. `luban\` 目录内容来自 `lubanSrc\Luban` 的构建产物，至少应包含 `Luban.dll`、`Luban.deps.json`、`Luban.runtimeconfig.json` 与 `Templates\`。
+6. 不要将 `-o` 直接指向目标 `luban` 目录；`-o` 应始终指向应用发布根目录。
 
 ---
 
@@ -74,10 +77,12 @@ dotnet publish .\LubanGui\LubanGui.csproj -c Release -r win-x64 --self-contained
 在 publish\win-x64 下确认:
 
 1. LubanGui.exe 存在。
-2. luban\Luban.dll 存在。
-3. luban\Templates 目录存在。
-4. luban\Luban.runtimeconfig.json 存在。
-5. luban\Luban.deps.json 存在。
+2. 根目录下存在名为 luban 的子目录。
+3. luban\Luban.dll 存在。
+4. luban\Templates 目录存在。
+5. luban\Luban.runtimeconfig.json 存在。
+6. luban\Luban.deps.json 存在。
+7. 若使用自定义 `-o`，以上检查路径中的 `publish\win-x64` 应替换为实际发布根目录，而不是其他中间目录。
 
 ### 步骤 4: 冒烟验证
 
@@ -145,6 +150,19 @@ LubanGui\luban 或其他目录出现大量运行时 DLL 变化。
 2. 常规发布不提交自动生成的运行时二进制变化。
 3. 仅在明确升级内置运行时快照时再提交该类文件。
 
+### 问题 4: 发布后根目录下没有 luban 文件夹
+
+现象:
+
+发布成功，但 `LubanGui.exe` 同级目录下没有 `luban\`，或 `Luban.dll` 没有出现在 `发布根目录\luban\Luban.dll`。
+
+排查:
+
+1. 确认 `-o` 指向的是应用发布根目录，而不是 `...\luban` 子目录。
+2. 确认发布完成后检查的是最终 `-o` 输出目录，而不是 `bin\Release\...` 等中间构建目录。
+3. 确认 `LubanGui.csproj` 中发布阶段会将 `lubanSrc\Luban` 的输出复制到 `$(PublishDir)\luban\`。
+4. 重新执行标准发布命令后，再检查 `发布根目录\luban\Luban.dll` 是否存在。
+
 ---
 
 ## 六、发布验收标准
@@ -152,11 +170,12 @@ LubanGui\luban 或其他目录出现大量运行时 DLL 变化。
 满足以下全部条件方可发布:
 
 1. Publish 命令成功执行。
-2. 发布目录关键文件完整。
-3. 应用可在目标机器独立启动。
-4. 最小导表流程成功。
-5. README 与 CHANGELOG 与 Release Note 一致。
-6. 已知风险已在发布说明中披露。
+2. 最终发布根目录下可直接看到 `LubanGui.exe` 与 `luban\` 子目录。
+3. 发布目录关键文件完整。
+4. 应用可在目标机器独立启动。
+5. 最小导表流程成功。
+6. README 与 CHANGELOG 与 Release Note 一致。
+7. 已知风险已在发布说明中披露。
 
 ---
 
