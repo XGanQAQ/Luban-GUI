@@ -9,6 +9,7 @@ using LubanGui.LubanAdapter;
 using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Services;
 using LubanGui.Services.Luban;
+using LubanGui.Services.Mcp;
 using LubanGui.ViewModels;
 using LubanGui.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,6 +66,9 @@ public partial class App : Application
         services.AddSingleton<ILubanConfAdapter, LubanConfAdapter>();
         services.AddSingleton<ILubanTypeMapper, LubanTypeMapper>();
 
+        // MCP 服务器
+        services.AddSingleton<McpServerService>();
+
         // 注册 ViewModel（手动注入所有依赖）
         services.AddSingleton<MainWindowViewModel>(sp => new MainWindowViewModel(
             sp.GetRequiredService<ILogger<MainWindowViewModel>>(),
@@ -74,7 +78,8 @@ public partial class App : Application
             sp.GetRequiredService<FileOpenService>(),
             sp.GetRequiredService<IExportService>(),
             sp.GetRequiredService<ProjectConfigManager>(),
-            sp.GetRequiredService<ILubanConfAdapter>()));
+            sp.GetRequiredService<ILubanConfAdapter>(),
+            sp.GetRequiredService<McpServerService>()));
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -96,6 +101,14 @@ public partial class App : Application
             {
                 await projectManager.InitializeAsync();
                 viewModel.SyncProjectsFromManager();
+
+                // 启动 MCP 服务器（如果配置为自动启动）
+                var configManager = _serviceProvider!.GetRequiredService<AppConfigManager>();
+                if (configManager.GetMcpAutoStart())
+                {
+                    var mcpService = _serviceProvider!.GetRequiredService<McpServerService>();
+                    await mcpService.StartAsync();
+                }
             };
         }
 

@@ -48,6 +48,7 @@ public partial class MainWindow : Window
             vm.ImportFileRequested += OnImportFileRequested;
             vm.ModifyTableFieldsRequested += OnModifyTableFieldsRequested;
             vm.DeleteTableRequested += OnDeleteTableRequested;
+            vm.OpenAppSettingsRequested += OnOpenAppSettingsRequested;
             vm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
@@ -637,6 +638,21 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             vm.AddLog(LogEntryLevel.Error, $"删除表格失败：{ex.Message}");
+        }
+    }
+
+    private async void OnOpenAppSettingsRequested(object? sender, EventArgs e)
+    {
+        var appConfigManager = GetService<AppConfigManager>();
+        if (appConfigManager == null) return;
+
+        var vm = new AppSettingsViewModel(appConfigManager);
+        vm.LoadFromConfig();
+        var dialog = new AppSettingsWindow(vm);
+        var result = await dialog.ShowDialog<bool?>(this);
+        if (result == true && DataContext is MainWindowViewModel mainVm)
+        {
+            mainVm.AddLog(Models.LogEntryLevel.Info, "应用设置已更新");
         }
     }
 

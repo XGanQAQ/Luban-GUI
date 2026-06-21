@@ -17,6 +17,7 @@ using LubanGui.Infrastructure;
 using LubanGui.LubanAdapter.Interfaces;
 using LubanGui.Models;
 using LubanGui.Services;
+using LubanGui.Services.Mcp;
 
 namespace LubanGui.ViewModels;
 
@@ -30,6 +31,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IExportService? _exportService;
     private readonly ProjectConfigManager? _configManager;
     private readonly ILubanConfAdapter? _confAdapter;
+    private readonly McpServerService? _mcpServerService;
 
     /// <summary>当前正在进行的导表操作的取消令牌源。</summary>
     private CancellationTokenSource? _exportCts;
@@ -134,6 +136,10 @@ public partial class MainWindowViewModel : ViewModelBase
     public string AppVersion { get; } =
         "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
 
+    /// <summary>MCP 服务器状态文本（绑定到状态栏）。</summary>
+    [ObservableProperty]
+    private string _mcpStatusText = "MCP: 未启动";
+
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
     // ── 二级窗口事件（由 View 层订阅，负责实际打开窗口） ──────────────────────
@@ -155,9 +161,12 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>请求删除指定表格（由 View 层处理确认对话框与实际删除）。</summary>
     public event EventHandler<TableEntryViewModel?>? DeleteTableRequested;
 
+    /// <summary>请求打开应用设置窗口（由 View 层处理对话框）。</summary>
+    public event EventHandler? OpenAppSettingsRequested;
+
     // ── 构造函数 ──────────────────────────────────────────────────────────────
 
-    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null, null) { }
+    public MainWindowViewModel() : this(NullLogger<MainWindowViewModel>.Instance, null, null, null, null, null, null, null, null) { }
 
     public MainWindowViewModel(
         ILogger<MainWindowViewModel> logger,
@@ -167,7 +176,8 @@ public partial class MainWindowViewModel : ViewModelBase
         FileOpenService? fileOpenService,
         IExportService? exportService,
         ProjectConfigManager? configManager,
-        ILubanConfAdapter? confAdapter)
+        ILubanConfAdapter? confAdapter,
+        McpServerService? mcpServerService = null)
     {
         _logger = logger;
         _projectManager = projectManager;
@@ -177,6 +187,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _exportService = exportService;
         _configManager = configManager;
         _confAdapter = confAdapter;
+        _mcpServerService = mcpServerService;
 
         ExportConfig = new ExportConfigViewModel(SaveProjectConfigAsync);
 
@@ -184,6 +195,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _projectManager.CurrentProjectChanged += OnCurrentProjectChanged;
             SyncProjectList();
+        }
+
+        if (_mcpServerService != null)
+        {
+            _mcpServerService.StatusChanged += OnMcpStatusChanged;
+            McpStatusText = _mcpServerService.IsRunning
+                ? $"MCP: {_mcpServerService.Url}"
+                : "MCP: 未启动";
         }
 
         _logger.LogInformation("MainWindowViewModel 初始化完成");
@@ -813,6 +832,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ShowAbout() =>
         OpenAboutRequested?.Invoke(this, EventArgs.Empty);
 
+    [RelayCommand]
+    private void OpenAppSettings() =>
+        OpenAppSettingsRequested?.Invoke(this, EventArgs.Empty);
+
     // ── 日志操作命令 ──────────────────────────────────────────────────────────
 
     [RelayCommand]
@@ -825,6 +848,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ClearDataTypes()
     {
         DataTypeListViewModel?.Clear();
+    }
+
+    private void OnMcpStatusChanged(bool running, int port)
+    {
+        McpStatusText = running ? $"MCP: localhost:{port}" : "MCP: 未启动";
     }
 
     // ── 导出配置持久化 ────────────────────────────────────────────────────────

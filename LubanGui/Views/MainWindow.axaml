@@ -41,6 +41,9 @@
                               Command="{Binding OpenProjectCommand}"
                               InputGesture="Ctrl+O" />
                     <Separator />
+                    <MenuItem Header="设置(_S)..."
+                              Command="{Binding OpenAppSettingsCommand}" />
+                    <Separator />
                     <MenuItem Header="退出(_X)"
                               Command="{Binding ExitCommand}" />
                 </MenuItem>
@@ -280,16 +283,22 @@
         <!-- ===== 状态栏 ===== -->
         <Border Grid.Row="4"
                 Height="24"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="8,0">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding LastExportStatusText}"
                            VerticalAlignment="Center"
                            FontSize="12"
                            Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                 <TextBlock Grid.Column="1"
+                           Text="{Binding McpStatusText}"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Margin="0,0,16,0" />
+                <TextBlock Grid.Column="2"
                            Text="{Binding AppVersion}"
                            VerticalAlignment="Center"
                            FontSize="12"

@@ -29,11 +29,18 @@
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="7.0.0" />
     <!-- 依赖注入 -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
     <!-- Excel 读写 -->
     <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <!-- MCP 服务器 -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 嵌入 ASP.NET Core Kestrel（用于 MCP HTTP/SSE 服务器） -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <!-- Luban 源适配层：进程内直接引用 Luban 核心库 -->

@@ -23,4 +23,10 @@ public class AppConfig
     /// 删除表格时的默认策略：true = 同时删除物理 xlsx 文件；false = 仅移除注册（保留文件）。
     /// </summary>
     public bool DeleteTablePhysicalFileByDefault { get; set; } = false;
+
+    /// <summary>MCP 服务器是否随应用自动启动。</summary>
+    public bool McpAutoStart { get; set; } = true;
+
+    /// <summary>MCP 服务器监听端口。</summary>
+    public int McpPort { get; set; } = 62930;
 }

@@ -127,4 +127,24 @@ public class AppConfigManager
         _cache.DeleteTablePhysicalFileByDefault = value;
         await SaveAsync();
     }
+
+    /// <summary>获取 MCP 服务器是否随应用自动启动。</summary>
+    public bool GetMcpAutoStart() => _cache.McpAutoStart;
+
+    /// <summary>设置 MCP 服务器是否随应用自动启动。</summary>
+    public async Task SetMcpAutoStartAsync(bool value)
+    {
+        _cache.McpAutoStart = value;
+        await SaveAsync();
+    }
+
+    /// <summary>获取 MCP 服务器监听端口。</summary>
+    public int GetMcpPort() => _cache.McpPort;
+
+    /// <summary>设置 MCP 服务器监听端口。</summary>
+    public async Task SetMcpPortAsync(int value)
+    {
+        _cache.McpPort = value;
+        await SaveAsync();
+    }
 }
