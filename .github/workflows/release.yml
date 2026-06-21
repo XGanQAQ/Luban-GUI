@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore LubanGui.slnx
+
+      - name: Publish Windows x64 (self-contained)
+        run: dotnet publish LubanGui/LubanGui.csproj `
+          -c Release -r win-x64 --self-contained true `
+          -o publish/win-x64
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Compress-Archive -Path publish/win-x64/* `
+            -DestinationPath "Luban-GUI-$tag-win-x64.zip"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Luban-GUI-*.zip
+          draft: true
+          generate_release_notes: true
