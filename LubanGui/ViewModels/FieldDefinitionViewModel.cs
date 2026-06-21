@@ -7,7 +7,7 @@ using LubanGui.Models;
 namespace LubanGui.ViewModels;
 
 /// <summary>
-/// 对话框中可编辑的字段定义行，带移除命令。
+/// 对话框中可编辑的字段定义行，带移除和移动命令。
 /// </summary>
 public partial class FieldDefinitionViewModel : ObservableObject
 {
@@ -35,10 +35,17 @@ public partial class FieldDefinitionViewModel : ObservableObject
     partial void OnTypeChanged(string value) => ValidationRequested?.Invoke();
 
     public IRelayCommand RemoveCommand { get; }
+    public IRelayCommand MoveUpCommand { get; }
+    public IRelayCommand MoveDownCommand { get; }
 
-    public FieldDefinitionViewModel(Action<FieldDefinitionViewModel> removeAction)
+    public FieldDefinitionViewModel(
+        Action<FieldDefinitionViewModel> removeAction,
+        Action<FieldDefinitionViewModel> moveUpAction,
+        Action<FieldDefinitionViewModel> moveDownAction)
     {
         RemoveCommand = new RelayCommand(() => removeAction(this));
+        MoveUpCommand = new RelayCommand(() => moveUpAction(this));
+        MoveDownCommand = new RelayCommand(() => moveDownAction(this));
     }
 
     public FieldDefinition ToModel() => new()

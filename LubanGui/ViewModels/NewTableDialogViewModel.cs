@@ -55,13 +55,36 @@ public partial class NewTableDialogViewModel : ObservableObject
     [RelayCommand]
     private void AddField()
     {
-        var vm = new FieldDefinitionViewModel(f => { Fields.Remove(f); NotifyValidation(); })
+        var vm = new FieldDefinitionViewModel(
+            f => { Fields.Remove(f); NotifyValidation(); },
+            MoveFieldUp,
+            MoveFieldDown)
         {
             AvailableTypes = AvailableTypes,
             ValidationRequested = NotifyValidation,
         };
         Fields.Add(vm);
         NotifyValidation();
+    }
+
+    private void MoveFieldUp(FieldDefinitionViewModel vm)
+    {
+        var idx = Fields.IndexOf(vm);
+        if (idx > 0)
+        {
+            Fields.Move(idx, idx - 1);
+            NotifyValidation();
+        }
+    }
+
+    private void MoveFieldDown(FieldDefinitionViewModel vm)
+    {
+        var idx = Fields.IndexOf(vm);
+        if (idx < Fields.Count - 1)
+        {
+            Fields.Move(idx, idx + 1);
+            NotifyValidation();
+        }
     }
 
     private bool CanExecuteCreate() => CanCreate;
@@ -139,7 +162,10 @@ public partial class NewTableDialogViewModel : ObservableObject
 
     private void AddNamedField(string name, string type, string comment)
     {
-        var vm = new FieldDefinitionViewModel(f => { Fields.Remove(f); NotifyValidation(); })
+        var vm = new FieldDefinitionViewModel(
+            f => { Fields.Remove(f); NotifyValidation(); },
+            MoveFieldUp,
+            MoveFieldDown)
         {
             Name    = name,
             Type    = type,
