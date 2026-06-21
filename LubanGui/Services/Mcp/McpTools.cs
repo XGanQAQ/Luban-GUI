@@ -331,4 +331,178 @@ public class McpTools
             return $"更新导出配置失败: {ex.Message}";
         }
     }
+
+    // ── 表格 Schema 创建/修改 ──────────────────────────────────────────────────
+
+    [McpServerTool, Description("创建新表格：定义表名、索引字段和字段列表，生成数据 xlsx 并注册到 __tables__.xlsx")]
+    public async Task<object?> CreateTable(
+        string fullName,
+        string indexField,
+        List<FieldDefinition> fields)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            var meta = await _schemaService.CreateTableAsync(
+                project.ProjectPath, fullName, indexField, fields);
+            return new
+            {
+                Success = true,
+                Message = $"表格已创建: {meta.FullName}",
+                meta.FullName,
+                meta.Input,
+                meta.ValueType,
+                meta.Index,
+                FieldCount = fields.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            return $"创建表格失败: {ex.Message}";
+        }
+    }
+
+    [McpServerTool, Description("修改表格字段定义：更新字段名、类型和注释，保留已有数据行")]
+    public async Task<string> ModifyTableSchema(
+        string tableFullName,
+        List<FieldDefinition> fields)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            var metas = await _schemaService.LoadTablesAsync(project.ProjectPath);
+            var meta = metas.FirstOrDefault(m =>
+                string.Equals(m.FullName, tableFullName, StringComparison.OrdinalIgnoreCase));
+            if (meta == null)
+            {
+                return $"未找到表格: {tableFullName}";
+            }
+
+            await _schemaService.ModifyTableFieldsAsync(
+                project.ProjectPath, meta.Input, fields);
+            return $"表格字段已更新: {tableFullName}（{fields.Count} 个字段）";
+        }
+        catch (Exception ex)
+        {
+            return $"修改表格字段失败: {ex.Message}";
+        }
+    }
+
+    [McpServerTool, Description("删除表格：从 __tables__.xlsx 中移除注册，并可选删除数据文件")]
+    public async Task<string> DeleteTable(
+        string tableFullName,
+        bool deletePhysicalFile = false)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            var metas = await _schemaService.LoadTablesAsync(project.ProjectPath);
+            var meta = metas.FirstOrDefault(m =>
+                string.Equals(m.FullName, tableFullName, StringComparison.OrdinalIgnoreCase));
+            if (meta == null)
+            {
+                return $"未找到表格: {tableFullName}";
+            }
+
+            await _schemaService.DeleteTableAsync(
+                project.ProjectPath, meta.FullName, meta.Input, deletePhysicalFile);
+            return $"表格已删除: {tableFullName}";
+        }
+        catch (Exception ex)
+        {
+            return $"删除表格失败: {ex.Message}";
+        }
+    }
+
+    // ── 枚举创建/修改 ──────────────────────────────────────────────────────────
+
+    [McpServerTool, Description("创建新枚举：定义枚举名、各项和属性，注册到 __enums__.xlsx")]
+    public async Task<string> CreateEnum(
+        string fullName,
+        List<EnumItemDefinition> items,
+        bool isFlags = false,
+        bool isUnique = true)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            await _schemaService.CreateEnumAsync(
+                project.ProjectPath, fullName, isFlags, isUnique, items);
+            return $"枚举已创建: {fullName}（{items.Count} 项）";
+        }
+        catch (Exception ex)
+        {
+            return $"创建枚举失败: {ex.Message}";
+        }
+    }
+
+    [McpServerTool, Description("更新枚举定义：替换枚举项列表和属性")]
+    public async Task<string> UpdateEnum(
+        string fullName,
+        List<EnumItemDefinition> items,
+        bool isFlags = false,
+        bool isUnique = true)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            await _schemaService.UpdateEnumAsync(
+                project.ProjectPath, fullName, isFlags, isUnique, items);
+            return $"枚举已更新: {fullName}（{items.Count} 项）";
+        }
+        catch (Exception ex)
+        {
+            return $"更新枚举失败: {ex.Message}";
+        }
+    }
+
+    // ── Bean 创建 ──────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description("创建新 Bean 结构体：定义字段列表，注册到 __beans__.xlsx")]
+    public async Task<string> CreateBean(
+        string fullName,
+        List<FieldDefinition> fields)
+    {
+        var project = _projectManager.CurrentProject;
+        if (project == null)
+        {
+            return "当前没有打开的项目";
+        }
+
+        try
+        {
+            await _schemaService.CreateBeanAsync(
+                project.ProjectPath, fullName, fields);
+            return $"Bean 已创建: {fullName}（{fields.Count} 个字段）";
+        }
+        catch (Exception ex)
+        {
+            return $"创建 Bean 失败: {ex.Message}";
+        }
+    }
 }
