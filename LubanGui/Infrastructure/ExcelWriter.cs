@@ -515,6 +515,160 @@ public static class ExcelWriter
     }
 
     /// <summary>
+    /// 从 __enums__.xlsx 读取指定枚举的顶层字段（flags, unique, comment）。
+    /// </summary>
+    /// <returns>(isFlags, isUnique, comment)；未找到时返回 (false, false, "")。</returns>
+    public static (bool isFlags, bool isUnique, string comment) ReadEnumTopFields(string path, string fullName)
+    {
+        if (!File.Exists(path)) return (false, false, string.Empty);
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+
+            var name = sheet.Cell(r, 2).GetString().Trim();
+            if (name.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+            {
+                var isFlags  = sheet.Cell(r, 3).GetString().Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+                var isUnique = sheet.Cell(r, 4).GetString().Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+                var comment  = sheet.Cell(r, 6).GetString().Trim();
+                return (isFlags, isUnique, comment);
+            }
+        }
+
+        return (false, false, string.Empty);
+    }
+
+    /// <summary>
+    /// 从 __enums__.xlsx 读取指定枚举的所有项。
+    /// </summary>
+    /// <returns>返回枚举的 items 列表；若未找到则返回空列表。</returns>
+    public static IReadOnlyList<EnumItemDefinition> ReadEnumItems(string path, string fullName)
+    {
+        var result = new List<EnumItemDefinition>();
+        if (!File.Exists(path)) return result;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        int subStartCol = s_enumTopFields.Length + 2;
+        bool found = false;
+
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+
+            var name = sheet.Cell(r, 2).GetString().Trim();
+
+            // 遇到非空 full_name 且不等于目标 → 如果已找到过则后续不再属于当前枚举
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                if (found)
+                {
+                    if (!name.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                        break;
+                    // 同名枚举的额外 top 行（重复），跳过
+                    continue;
+                }
+
+                if (!name.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                found = true;
+            }
+            else if (!found)
+            {
+                continue;
+            }
+
+            // found == true：当前行属于目标枚举
+            var item = new EnumItemDefinition
+            {
+                Name    = sheet.Cell(r, subStartCol).GetString().Trim(),
+                Alias   = sheet.Cell(r, subStartCol + 1).GetString().Trim(),
+                Value   = sheet.Cell(r, subStartCol + 2).GetString().Trim(),
+                Comment = sheet.Cell(r, subStartCol + 3).GetString().Trim(),
+            };
+            result.Add(item);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 更新 __enums__.xlsx 中的一条枚举记录：删除旧行，写入新行。
+    /// </summary>
+    /// <exception cref="FileNotFoundException">文件不存在。</exception>
+    public static void UpdateEnumEntry(
+        string path,
+        string fullName,
+        bool isFlags,
+        bool isUnique,
+        string group,
+        string comment,
+        IReadOnlyList<EnumItemDefinition> items)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"__enums__.xlsx 不存在：{path}");
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        int subStartCol = s_enumTopFields.Length + 2;
+
+        // 1. 删除旧行（从后往前删，避免行号错乱）
+        for (int r = lastRow; r >= 1; r--)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a.StartsWith("##")) continue;
+
+            var name = sheet.Cell(r, 2).GetString().Trim();
+            if (!string.IsNullOrEmpty(name) && name.Equals(fullName, StringComparison.OrdinalIgnoreCase))
+            {
+                sheet.Row(r).Delete();
+            }
+        }
+
+        // 2. 重新定位最后行
+        lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        // 3. 写入新行（复用 AppendEnumEntry 的写入逻辑）
+        int numRows = Math.Max(1, items.Count);
+        for (int i = 0; i < numRows; i++)
+        {
+            int r = lastRow + 1 + i;
+
+            if (i == 0)
+            {
+                sheet.Cell(r, 2).Value = fullName;
+                sheet.Cell(r, 3).Value = isFlags ? "true" : "false";
+                sheet.Cell(r, 4).Value = isUnique ? "true" : "false";
+                sheet.Cell(r, 5).Value = group;
+                sheet.Cell(r, 6).Value = comment;
+            }
+
+            if (i < items.Count)
+            {
+                var item = items[i];
+                sheet.Cell(r, subStartCol).Value     = item.Name;
+                sheet.Cell(r, subStartCol + 1).Value = item.Alias;
+                sheet.Cell(r, subStartCol + 2).Value = item.Value;
+                sheet.Cell(r, subStartCol + 3).Value = item.Comment;
+            }
+        }
+
+        workbook.Save();
+    }
+
+    /// <summary>
     /// 向 __beans__.xlsx 追加一条 Bean 记录（多行模式：第一行写顶层字段，每个字段占一行）。
     /// </summary>
     /// <exception cref="FileNotFoundException">文件不存在。</exception>

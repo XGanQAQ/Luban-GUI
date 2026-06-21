@@ -75,4 +75,15 @@ public interface ISchemaService
     /// <param name="inputRelPath">数据文件相对于 Datas/ 目录的路径（例如 "cfg/Item.xlsx"）。</param>
     /// <param name="deletePhysicalFile">true 则同时删除物理数据文件；false 则仅移除注册条目。</param>
     Task DeleteTableAsync(string projectPath, string fullName, string inputRelPath, bool deletePhysicalFile);
+
+    /// <summary>
+    /// 读取指定枚举的完整定义（包含所有项）。
+    /// </summary>
+    /// <returns>枚举的定义（isFlags、isUnique、items）；未找到则返回 null。</returns>
+    Task<EnumInfoDto?> GetEnumAsync(string projectPath, string fullName);
+
+    /// <summary>
+    /// 更新指定枚举的定义：替换 __enums__.xlsx 中的条目。
+    /// </summary>
+    Task UpdateEnumAsync(string projectPath, string fullName, bool isFlags, bool isUnique, IReadOnlyList<EnumItemDefinition> items);
 }

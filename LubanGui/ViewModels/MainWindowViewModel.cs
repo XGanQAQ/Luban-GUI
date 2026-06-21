@@ -111,24 +111,10 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private TableMeta? _selectedTableMeta;
 
-    // ── 数据类型列表 ───────────────────────────────────────────────────────────
+    // ── 数据类型列表 ViewModel ──────────────────────────────────────────────
 
-    /// <summary>统一类型列表（内置类型 + 枚举 + Bean），绑定到「数据类型列表」窗口。</summary>
-    public ObservableCollection<DataTypeListItem> DataTypes { get; } = new();
-
-    [ObservableProperty]
-    private bool _isDataTypesLoading;
-
-    [ObservableProperty]
-    private int _builtinTypeCount;
-
-    [ObservableProperty]
-    private int _enumTypeCount;
-
-    [ObservableProperty]
-    private int _beanTypeCount;
-
-    public int TotalTypeCount => BuiltinTypeCount + EnumTypeCount + BeanTypeCount;
+    /// <summary>当前「数据类型列表」窗口的 ViewModel，由 View 层读取并设置为 DataContext。</summary>
+    public DataTypeListViewModel? DataTypeListViewModel { get; private set; }
 
     // ── UI 状态 ───────────────────────────────────────────────────────────────
 
@@ -615,7 +601,12 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await ReloadDataTypesAsync(CurrentProject.ProjectPath);
+        var items = await LoadDataTypesAsync(CurrentProject.ProjectPath);
+        if (items == null) return;
+
+        DataTypeListViewModel ??= new DataTypeListViewModel(_schemaService);
+        DataTypeListViewModel.LoadFrom(items);
+
         OpenDataTypeListRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -638,7 +629,31 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await ReloadDataTypesAsync(CurrentProject.ProjectPath);
+        var items = await LoadDataTypesAsync(CurrentProject.ProjectPath);
+        if (items == null) return;
+
+        DataTypeListViewModel ??= new DataTypeListViewModel(_schemaService);
+        DataTypeListViewModel.LoadFrom(items);
+    }
+
+    /// <summary>加载数据类型列表，返回 null 表示失败。供 View 层在刷新时调用。</summary>
+    public async Task<IReadOnlyList<DataTypeListItem>?> LoadDataTypesAsyncPublic(string projectPath) => await LoadDataTypesAsync(projectPath);
+
+    /// <summary>加载数据类型列表，返回 null 表示失败。</summary>
+    private async Task<IReadOnlyList<DataTypeListItem>?> LoadDataTypesAsync(string projectPath)
+    {
+        if (_schemaService == null) return null;
+
+        try
+        {
+            return await _schemaService.GetUnifiedTypeListAsync(projectPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载数据类型列表失败");
+            AddLog(LogEntryLevel.Error, $"加载数据类型列表失败：{ex.Message}");
+            return null;
+        }
     }
 
     // ── 快捷操作工具栏命令 ────────────────────────────────────────────────────
@@ -809,48 +824,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ClearDataTypes()
     {
-        DataTypes.Clear();
-        BuiltinTypeCount = 0;
-        EnumTypeCount = 0;
-        BeanTypeCount = 0;
-        OnPropertyChanged(nameof(TotalTypeCount));
-    }
-
-    private async Task ReloadDataTypesAsync(string projectPath)
-    {
-        if (_schemaService == null)
-        {
-            return;
-        }
-
-        IsDataTypesLoading = true;
-        try
-        {
-            var items = await _schemaService.GetUnifiedTypeListAsync(projectPath);
-
-            DataTypes.Clear();
-            foreach (var item in items)
-            {
-                DataTypes.Add(item);
-            }
-
-            BuiltinTypeCount = items.Count(i => i.Category == "内置");
-            EnumTypeCount = items.Count(i => i.Category == "枚举");
-            BeanTypeCount = items.Count(i => i.Category == "Bean");
-            OnPropertyChanged(nameof(TotalTypeCount));
-
-            AddLog(LogEntryLevel.Info,
-                $"已加载数据类型：共 {TotalTypeCount} 项（内置 {BuiltinTypeCount} / 枚举 {EnumTypeCount} / Bean {BeanTypeCount}）");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "加载数据类型列表失败");
-            AddLog(LogEntryLevel.Error, $"加载数据类型列表失败：{ex.Message}");
-        }
-        finally
-        {
-            IsDataTypesLoading = false;
-        }
+        DataTypeListViewModel?.Clear();
     }
 
     // ── 导出配置持久化 ────────────────────────────────────────────────────────

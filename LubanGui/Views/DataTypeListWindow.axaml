@@ -6,34 +6,43 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="500"
         x:Class="LubanGui.Views.DataTypeListWindow"
-        x:DataType="vm:MainWindowViewModel"
+        x:DataType="vm:DataTypeListViewModel"
         Title="数据类型列表"
         Width="760" Height="500"
         MinWidth="560" MinHeight="360"
         CanResize="True">
 
     <Design.DataContext>
-        <vm:MainWindowViewModel />
+        <vm:DataTypeListViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="10">
+        <!-- 标题行 -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
             <TextBlock Grid.Column="0"
-                       Text="统一展示内置默认类型与自定义类型（enum、bean）"
+                       Text="Luban 数据类型列表"
                        VerticalAlignment="Center"
                        FontWeight="SemiBold" />
             <Button Grid.Column="1"
                     Content="刷新"
-                    Command="{Binding RefreshDataTypesCommand}" />
+                    Command="{Binding RefreshCommand}" />
         </Grid>
 
-        <Border Grid.Row="1"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                BorderThickness="1"
-                CornerRadius="4"
-                Padding="8"
-                Margin="0,0,0,8">
-            <TextBlock>
+        <!-- 搜索框 -->
+        <TextBox Grid.Row="1"
+                 Text="{Binding TypeFilter}"
+                 Watermark="搜索类型名称..."
+                 Margin="0,0,0,6" />
+
+        <!-- 选项栏 + 统计 -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+            <CheckBox Grid.Column="0"
+                      Content="显示内置类型"
+                      IsChecked="{Binding ShowBuiltinTypes}" />
+            <TextBlock Grid.Column="1"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       FontSize="12">
                 <Run Text="总计: " />
                 <Run Text="{Binding TotalTypeCount}" />
                 <Run Text="  |  内置: " />
@@ -42,13 +51,12 @@
                 <Run Text="{Binding EnumTypeCount}" />
                 <Run Text="  |  Bean: " />
                 <Run Text="{Binding BeanTypeCount}" />
-                <Run Text="  |  加载中: " />
-                <Run Text="{Binding IsDataTypesLoading}" />
             </TextBlock>
-        </Border>
+        </Grid>
 
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding DataTypes}"
+        <!-- 类型列表 -->
+        <DataGrid Grid.Row="4"
+                  ItemsSource="{Binding FilteredDataTypes}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   GridLinesVisibility="All"
@@ -56,10 +64,22 @@
                   CanUserSortColumns="True"
                   FontSize="12">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="120" />
+                <DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="100" />
                 <DataGridTextColumn Header="类型名" Binding="{Binding Name}" Width="2*" />
                 <DataGridTextColumn Header="说明" Binding="{Binding Description}" Width="3*" />
             </DataGrid.Columns>
+
+            <DataGrid.Styles>
+                <Style Selector="DataGridRow">
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu>
+                                <MenuItem Header="修改枚举" Click="OnModifyEnumClick" />
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </DataGrid.Styles>
         </DataGrid>
     </Grid>
 

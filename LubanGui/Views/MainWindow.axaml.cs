@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -155,17 +156,92 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
     }
 
-    private void OnOpenDataTypeListRequested(object? sender, EventArgs e)
+    private async void OnOpenDataTypeListRequested(object? sender, EventArgs e)
     {
+        if (DataContext is not MainWindowViewModel vm || vm.DataTypeListViewModel == null)
+        {
+            return;
+        }
+
+        var dtlVm = vm.DataTypeListViewModel;
+        dtlVm.ModifyEnumRequested += OnModifyEnumFromDataTypeList;
+        dtlVm.RefreshRequested += async (_, _) =>
+        {
+            if (vm.CurrentProject != null)
+            {
+                var items = await vm.LoadDataTypesAsyncPublic(vm.CurrentProject.ProjectPath);
+                if (items != null) dtlVm.LoadFrom(items);
+            }
+        };
+
         if (_dataTypeListWindow == null || !_dataTypeListWindow.IsVisible)
         {
-            _dataTypeListWindow = new DataTypeListWindow { DataContext = DataContext };
-            _dataTypeListWindow.Closed += (_, _) => _dataTypeListWindow = null;
+            _dataTypeListWindow = new DataTypeListWindow();
+            _dataTypeListWindow.SetViewModel(dtlVm);
+            _dataTypeListWindow.Closed += (_, _) =>
+            {
+                dtlVm.ModifyEnumRequested -= OnModifyEnumFromDataTypeList;
+                _dataTypeListWindow = null;
+            };
             _dataTypeListWindow.Show(this);
         }
         else
         {
             _dataTypeListWindow.Activate();
+        }
+    }
+
+    private async void OnModifyEnumFromDataTypeList(object? sender, string enumFullName)
+    {
+        if (DataContext is not MainWindowViewModel vm || vm.CurrentProject == null)
+            return;
+
+        var schemaService = GetService<ISchemaService>();
+        if (schemaService == null) return;
+
+        // 读取当前枚举定义
+        var enumDto = await schemaService.GetEnumAsync(vm.CurrentProject.ProjectPath, enumFullName);
+        if (enumDto == null)
+        {
+            vm.AddLog(LogEntryLevel.Warning, $"未找到枚举：{enumFullName}");
+            return;
+        }
+
+        var dialogVm = new ModifyEnumDialogViewModel();
+        dialogVm.LoadFrom(enumDto);
+
+        var dialog = new ModifyEnumDialog(dialogVm);
+        var result = await dialog.ShowDialog<ModifyEnumResult?>(this);
+
+        if (result == null) return;
+
+        if (result.Items.Count == 0)
+        {
+            vm.AddLog(LogEntryLevel.Warning, "枚举项为空，取消修改");
+            return;
+        }
+
+        try
+        {
+            await schemaService.UpdateEnumAsync(
+                vm.CurrentProject.ProjectPath,
+                enumFullName,
+                result.IsFlags,
+                result.IsUnique,
+                result.Items);
+
+            vm.AddLog(LogEntryLevel.Success, $"已更新枚举：{enumFullName}");
+
+            // 刷新数据类型列表
+            if (vm.DataTypeListViewModel != null)
+            {
+                var items = await vm.LoadDataTypesAsyncPublic(vm.CurrentProject.ProjectPath);
+                if (items != null) vm.DataTypeListViewModel.LoadFrom(items);
+            }
+        }
+        catch (Exception ex)
+        {
+            vm.AddLog(LogEntryLevel.Error, $"更新枚举失败：{ex.Message}");
         }
     }
 

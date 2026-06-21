@@ -519,6 +519,47 @@ public class SchemaService : ISchemaService
         _ => 99,
     };
 
+    /// <inheritdoc/>
+    public Task<EnumInfoDto?> GetEnumAsync(string projectPath, string fullName)
+    {
+        var datasDir = Path.Combine(projectPath, "Datas");
+        var enumsXlsx = Path.Combine(datasDir, "__enums__.xlsx");
+
+        if (!File.Exists(enumsXlsx))
+            return Task.FromResult<EnumInfoDto?>(null);
+
+        var (isFlags, isUnique, comment) = ExcelWriter.ReadEnumTopFields(enumsXlsx, fullName);
+        var items = ExcelWriter.ReadEnumItems(enumsXlsx, fullName);
+
+        if (items.Count == 0 && !isFlags && !isUnique)
+            return Task.FromResult<EnumInfoDto?>(null);
+
+        return Task.FromResult<EnumInfoDto?>(new EnumInfoDto(fullName, isFlags, isUnique, comment, items));
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateEnumAsync(
+        string projectPath,
+        string fullName,
+        bool isFlags,
+        bool isUnique,
+        IReadOnlyList<EnumItemDefinition> items)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException("枚举全名不能为空", nameof(fullName));
+
+        var datasDir = Path.Combine(projectPath, "Datas");
+        var enumsXlsx = Path.Combine(datasDir, "__enums__.xlsx");
+
+        if (!File.Exists(enumsXlsx))
+            throw new FileNotFoundException($"__enums__.xlsx 不存在：{enumsXlsx}");
+
+        await Task.Run(() =>
+            ExcelWriter.UpdateEnumEntry(enumsXlsx, fullName, isFlags, isUnique, string.Empty, string.Empty, items));
+
+        _logger.LogInformation("枚举 {FullName} 已更新（{Count} 个枚举项）", fullName, items.Count);
+    }
+
     /// <summary>
     /// 读取项目允许的自定义类型集合：仅包含枚举与 Bean 类型。
     /// </summary>

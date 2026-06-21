@@ -1,6 +1,7 @@
 # Luban-GUI
 
 **Luban-GUI** 是 [Luban](https://github.com/focus-creative-games/luban) 命令行导表工具的可视化封装，让策划、测试等非技术用户无需学习命令行，即可完成复杂的表格导出任务。
+其最大优势在于**用户无需理解 Luban 背后如何组织和管理 Excel 的复杂规范**，开箱即用，直接上手填写数据即可。
 
 ## 交流群
 
