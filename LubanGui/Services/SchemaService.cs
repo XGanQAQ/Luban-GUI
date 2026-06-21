@@ -436,6 +436,45 @@ public class SchemaService : ISchemaService
     }
 
     /// <inheritdoc/>
+    public async Task ModifyTableFieldsAsync(
+        string projectPath, string inputRelPath, IReadOnlyList<FieldDefinition> newFields)
+    {
+        if (string.IsNullOrWhiteSpace(inputRelPath))
+            throw new ArgumentException("数据文件路径不能为空", nameof(inputRelPath));
+
+        if (newFields == null || newFields.Count == 0)
+            throw new ArgumentException("字段列表不能为空", nameof(newFields));
+
+        var xlsxAbsPath = Path.Combine(projectPath, "Datas", inputRelPath);
+        if (!File.Exists(xlsxAbsPath))
+            throw new FileNotFoundException($"数据文件不存在：{xlsxAbsPath}");
+
+        // 校验字段类型
+        var allowedCustomTypes = await LoadAllowedCustomTypesAsync(projectPath);
+        foreach (var field in newFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name)) continue;
+            var typeError = ContainerTypeValidator.Validate(field.Type, allowedCustomTypes);
+            if (typeError != null)
+                throw new ArgumentException($"字段 '{field.Name}' 的类型不合法：{typeError}", nameof(newFields));
+        }
+
+        // 校验字段名重复
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var field in newFields)
+        {
+            if (!string.IsNullOrWhiteSpace(field.Name) && !seen.Add(field.Name))
+                throw new ArgumentException($"字段名重复：'{field.Name}'", nameof(newFields));
+        }
+
+        _logger.LogInformation("修改表格字段：{Path}（{Count} 个字段）", inputRelPath, newFields.Count);
+
+        await Task.Run(() => ExcelWriter.UpdateDataXlsxSchema(xlsxAbsPath, newFields));
+
+        _logger.LogInformation("表格字段修改完成：{Path}", inputRelPath);
+    }
+
+    /// <inheritdoc/>
     public async Task DeleteTableAsync(
         string projectPath,
         string fullName,

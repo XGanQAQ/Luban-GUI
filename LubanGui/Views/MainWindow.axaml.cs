@@ -45,6 +45,7 @@ public partial class MainWindow : Window
             vm.NewEnumRequested += OnNewEnumRequested;
             vm.NewBeanRequested += OnNewBeanRequested;
             vm.ImportFileRequested += OnImportFileRequested;
+            vm.ModifyTableFieldsRequested += OnModifyTableFieldsRequested;
             vm.DeleteTableRequested += OnDeleteTableRequested;
             vm.PropertyChanged += OnViewModelPropertyChanged;
         }
@@ -414,6 +415,86 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             vm.AddLog(LogEntryLevel.Error, $"导入文件失败：{ex.Message}");
+        }
+    }
+
+    private async void OnModifyTableFieldsRequested(object? sender, TableEntryViewModel? entry)
+    {
+        if (DataContext is not MainWindowViewModel vm || vm.CurrentProject == null || entry == null)
+        {
+            return;
+        }
+
+        var schemaService = GetService<ISchemaService>();
+        if (schemaService == null)
+        {
+            return;
+        }
+
+        var meta = vm.GetMetaForEntryPublic(entry);
+        if (meta == null)
+        {
+            vm.AddLog(LogEntryLevel.Warning, $"未找到表格元数据：{entry.Name}");
+            return;
+        }
+
+        // 读取当前数据 xlsx 的字段定义
+        var xlsxAbsPath = Path.Combine(vm.CurrentProject.ProjectPath, "Datas", meta.Input);
+        if (!File.Exists(xlsxAbsPath))
+        {
+            vm.AddLog(LogEntryLevel.Error, $"数据文件不存在：{xlsxAbsPath}");
+            return;
+        }
+
+        var existingFields = ExcelWriter.ReadDataXlsxSchema(xlsxAbsPath);
+        if (existingFields.Count == 0)
+        {
+            vm.AddLog(LogEntryLevel.Warning, $"未能读取到字段定义：{xlsxAbsPath}");
+        }
+
+        var dialogVm = new ModifyTableDialogViewModel();
+
+        // 注入类型建议
+        try
+        {
+            var suggestions = await schemaService.GetAvailableTypeNamesAsync(vm.CurrentProject.ProjectPath);
+            dialogVm.SetAvailableTypes(suggestions);
+        }
+        catch { }
+
+        dialogVm.LoadFromExisting(entry.Name, existingFields);
+
+        var dialog = new ModifyTableDialog(dialogVm);
+        var result = await dialog.ShowDialog<ModifyTableResult?>(this);
+
+        if (result == null)
+        {
+            return;
+        }
+
+        if (result.Fields.Count == 0)
+        {
+            vm.AddLog(LogEntryLevel.Warning, "字段列表为空，取消修改");
+            return;
+        }
+
+        try
+        {
+            await schemaService.ModifyTableFieldsAsync(
+                vm.CurrentProject.ProjectPath,
+                meta.Input,
+                result.Fields);
+
+            vm.AddLog(LogEntryLevel.Success, $"已修改表格字段：{entry.Name}");
+            // 刷新预览（如果当前选中的是同一张表）
+            if (ReferenceEquals(vm.SelectedTable, entry))
+            {
+                await vm.RefreshTablesCommand.ExecuteAsync(null);
+            }
+        }
+        catch (Exception ex)
+        {
+            vm.AddLog(LogEntryLevel.Error, $"修改表格字段失败：{ex.Message}");
         }
     }
 

@@ -163,6 +163,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public event EventHandler? NewBeanRequested;
     public event EventHandler? ImportFileRequested;
 
+    /// <summary>请求修改指定表格的字段（由 View 层处理对话框）。</summary>
+    public event EventHandler<TableEntryViewModel?>? ModifyTableFieldsRequested;
+
     /// <summary>请求删除指定表格（由 View 层处理确认对话框与实际删除）。</summary>
     public event EventHandler<TableEntryViewModel?>? DeleteTableRequested;
 
@@ -715,6 +718,17 @@ public partial class MainWindowViewModel : ViewModelBase
         Tables.Remove(entry);
         ApplyTableFilter();
         AddLog(LogEntryLevel.Info, $"已从列表中移除：{entry.Name}（文件未被删除）");
+    }
+
+    [RelayCommand]
+    private void ModifyTableFields(TableEntryViewModel? entry)
+    {
+        if (entry == null)
+        {
+            return;
+        }
+
+        ModifyTableFieldsRequested?.Invoke(this, entry);
     }
 
     [RelayCommand]

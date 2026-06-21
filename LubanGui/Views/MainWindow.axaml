@@ -207,6 +207,10 @@
                                           Command="{Binding ShowTableInExplorerCommand}"
                                           CommandParameter="{Binding SelectedTable}" />
                                 <Separator />
+                                <MenuItem Header="✏ 修改字段..."
+                                          Command="{Binding ModifyTableFieldsCommand}"
+                                          CommandParameter="{Binding SelectedTable}" />
+                                <Separator />
                                 <MenuItem Header="🗑 删除表格..."
                                           Command="{Binding DeleteTableCommand}"
                                           CommandParameter="{Binding SelectedTable}" />

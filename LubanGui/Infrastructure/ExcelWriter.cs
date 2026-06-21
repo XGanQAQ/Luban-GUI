@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ClosedXML.Excel;
 using LubanGui.Models;
 
@@ -584,6 +585,186 @@ public static class ExcelWriter
         workbook.Save();
     }
 
+    /// <summary>
+    /// 从数据 xlsx 中读取当前字段定义（解析 ##var / ##type / ## 行）。
+    /// 返回字段定义列表（Name, Type, Comment）。
+    /// </summary>
+    public static List<FieldDefinition> ReadDataXlsxSchema(string path)
+    {
+        var fields = new List<FieldDefinition>();
+        if (!File.Exists(path))
+            return fields;
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet(1);
+
+        var (varRow, typeRow) = FindMetaRows(sheet);
+        if (varRow < 0)
+            return fields;
+
+        // 找注释行（第一个 A 列以 "##" 开头且不是 ##var 也不是 ##type 的行）
+        int commentRow = -1;
+        int lastRow = Math.Min(sheet.LastRowUsed()?.RowNumber() ?? 0, 10);
+        for (int r = 1; r <= lastRow; r++)
+        {
+            var a = sheet.Cell(r, 1).GetString().Trim();
+            if (a == "##" && r != varRow && r != typeRow)
+            {
+                commentRow = r;
+                break;
+            }
+        }
+
+        var lastCol = sheet.Row(varRow).LastCellUsed()?.Address.ColumnNumber ?? 1;
+
+        for (int col = 2; col <= lastCol; col++)
+        {
+            var name = sheet.Cell(varRow, col).GetString().Trim();
+            if (string.IsNullOrEmpty(name))
+                break;
+
+            var type = typeRow >= 0
+                ? sheet.Cell(typeRow, col).GetString().Trim()
+                : "string";
+            var comment = commentRow >= 0
+                ? sheet.Cell(commentRow, col).GetString().Trim()
+                : string.Empty;
+
+            fields.Add(new FieldDefinition
+            {
+                Name = name,
+                Type = type,
+                Comment = comment,
+            });
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    /// 更新数据 xlsx 的字段定义，保留已有数据行。
+    /// 通过旧字段名与新字段名匹配来映射数据列；不匹配的旧列丢弃，新列留空。
+    /// </summary>
+    public static void UpdateDataXlsxSchema(string path, IReadOnlyList<FieldDefinition> newFields)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"数据文件不存在：{path}");
+
+        if (newFields.Count == 0)
+            throw new ArgumentException("字段列表不能为空", nameof(newFields));
+
+        // 1. 读取旧字段定义和数据
+        var oldFields = ReadDataXlsxSchema(path);
+        var oldFieldNames = oldFields.Select(f => f.Name).ToList();
+
+        using var oldWorkbook = new XLWorkbook(path);
+        var oldSheet = oldWorkbook.Worksheet(1);
+
+        var (varRow, _) = FindMetaRows(oldSheet);
+        int dataStartRow = varRow >= 0 ? varRow + 1 : 1;
+        int lastUsedRow = oldSheet.LastRowUsed()?.RowNumber() ?? dataStartRow;
+
+        // 收集数据行
+        var dataRows = new List<List<string>>();
+        for (int row = dataStartRow; row <= lastUsedRow; row++)
+        {
+            var aVal = oldSheet.Cell(row, 1).GetString().Trim();
+            if (aVal.StartsWith("##"))
+                continue;
+
+            bool isEmpty = true;
+            for (int col = 1; col <= oldFieldNames.Count + 1; col++)
+            {
+                if (!oldSheet.Cell(row, col).IsEmpty())
+                {
+                    isEmpty = false;
+                    break;
+                }
+            }
+            if (isEmpty)
+                continue;
+
+            var dataRow = new List<string>();
+            for (int col = 2; col <= oldFieldNames.Count + 1; col++)
+            {
+                dataRow.Add(oldSheet.Cell(row, col).GetString());
+            }
+            dataRows.Add(dataRow);
+        }
+
+        // 2. 构建旧列号 → 新列号的映射
+        var oldToNewMap = new int[oldFieldNames.Count];
+        Array.Fill(oldToNewMap, -1);
+        var newFieldNames = newFields.Select(f => f.Name).ToList();
+
+        for (int oldIdx = 0; oldIdx < oldFieldNames.Count; oldIdx++)
+        {
+            for (int newIdx = 0; newIdx < newFieldNames.Count; newIdx++)
+            {
+                if (string.Equals(oldFieldNames[oldIdx], newFieldNames[newIdx], StringComparison.OrdinalIgnoreCase))
+                {
+                    oldToNewMap[oldIdx] = newIdx;
+                    break;
+                }
+            }
+        }
+
+        // 3. 写入新格式
+        using var newWorkbook = new XLWorkbook();
+        var newSheet = newWorkbook.AddWorksheet("Sheet1");
+
+        // Row 1: ##var
+        newSheet.Cell(1, 1).Value = "##var";
+        for (int i = 0; i < newFields.Count; i++)
+        {
+            newSheet.Cell(1, i + 2).Value = newFields[i].Name;
+        }
+
+        // Row 2: ##type
+        newSheet.Cell(2, 1).Value = "##type";
+        for (int i = 0; i < newFields.Count; i++)
+        {
+            newSheet.Cell(2, i + 2).Value = FormatTypeWithSep(newFields[i].Type);
+        }
+
+        // Row 3: ## (comments)
+        bool hasComments = newFields.Any(f => !string.IsNullOrWhiteSpace(f.Comment));
+        if (hasComments)
+        {
+            newSheet.Cell(3, 1).Value = "##";
+            for (int i = 0; i < newFields.Count; i++)
+            {
+                newSheet.Cell(3, i + 2).Value = newFields[i].Comment;
+            }
+        }
+
+        // 4. 写入数据行（保留旧数据映射）
+        int dataRowStart = hasComments ? 4 : 3;
+        for (int ri = 0; ri < dataRows.Count; ri++)
+        {
+            int excelRow = dataRowStart + ri;
+            var oldRow = dataRows[ri];
+
+            for (int newIdx = 0; newIdx < newFields.Count; newIdx++)
+            {
+                // 查找旧数据中是否有同名字段
+                string value = string.Empty;
+                for (int oldIdx = 0; oldIdx < oldFieldNames.Count; oldIdx++)
+                {
+                    if (oldToNewMap[oldIdx] == newIdx && oldIdx < oldRow.Count)
+                    {
+                        value = oldRow[oldIdx];
+                        break;
+                    }
+                }
+                newSheet.Cell(excelRow, newIdx + 2).Value = value;
+            }
+        }
+
+        newSheet.Columns().AdjustToContents();
+        newWorkbook.SaveAs(path);
+    }
+
     public static int MigrateToTbPrefixTableNames(string path)
     {
         if (!File.Exists(path))
@@ -674,6 +855,47 @@ public static class ExcelWriter
                 => $"(map#sep=|;),{parts[1].Trim()},{parts[2].Trim()}",
             _ => type,
         };
+    }
+
+    /// <summary>
+    /// 查找 xlsx 中的 ##var 行（标题行）和 ##type 行的行号（1-based）。
+    /// 若找不到返回 (-1, -1)。与 TablePreviewService 中的实现一致。
+    /// </summary>
+    private static (int varRow, int typeRow) FindMetaRows(IXLWorksheet sheet)
+    {
+        int varRow = -1;
+        int typeRow = -1;
+
+        var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+        for (int row = 1; row <= Math.Min(lastRow, 10); row++)
+        {
+            var a = sheet.Cell(row, 1).GetString().Trim().ToLowerInvariant();
+
+            if (varRow < 0 && (a == "##var" || a == "##+"))
+            {
+                varRow = row;
+            }
+            else if (varRow < 0 && a == "##" && row == 1)
+            {
+                var b1 = sheet.Cell(1, 2).GetString().Trim();
+                if (!string.IsNullOrEmpty(b1))
+                {
+                    varRow = 1;
+                }
+            }
+            else if (typeRow < 0 && a == "##type")
+            {
+                typeRow = row;
+            }
+
+            if (varRow > 0 && !a.StartsWith("##", StringComparison.Ordinal))
+            {
+                break;
+            }
+        }
+
+        return (varRow, typeRow);
     }
 
     /// <summary>返回下一个可写入数据的行号（跳过 ## 行和 ##var 行，以及已有数据行）。</summary>

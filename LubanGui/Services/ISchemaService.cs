@@ -60,6 +60,14 @@ public interface ISchemaService
     Task<IReadOnlyList<DataTypeListItem>> GetUnifiedTypeListAsync(string projectPath);
 
     /// <summary>
+    /// 修改表格字段定义：更新数据 xlsx 的 ##var / ##type / ## 行，保留已有数据行。
+    /// </summary>
+    /// <param name="projectPath">项目根目录。</param>
+    /// <param name="inputRelPath">数据文件相对于 Datas/ 目录的路径。</param>
+    /// <param name="newFields">新的字段定义列表。</param>
+    Task ModifyTableFieldsAsync(string projectPath, string inputRelPath, IReadOnlyList<FieldDefinition> newFields);
+
+    /// <summary>
     /// 删除表格：从 __tables__.xlsx 中移除注册条目，并可选地删除对应的物理 xlsx 数据文件。
     /// </summary>
     /// <param name="projectPath">项目根目录。</param>
